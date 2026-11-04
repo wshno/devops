@@ -5,7 +5,7 @@ name: Repository report
 # ghcr.io/wshno/devops/report:latest, which the homelab cluster (hwinther/proxmox,
 # clusters/production/apps/devops-report) reconciles with Flux and serves behind Authelia.
 #
-# Needs the org variable AUTOMATION_APP_ID and secret AUTOMATION_APP_PRIVATE_KEY. The app is
+# Needs the repo variable AUTOMATION_APP_CLIENT_ID and secret AUTOMATION_APP_PRIVATE_KEY. The app is
 # installed on both owners in repos.yaml; each owner gets its own read-only token.
 
 on:
@@ -53,7 +53,7 @@ jobs:
         id: token-hwinther
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ vars.AUTOMATION_APP_ID }}
+          client-id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
           owner: hwinther
           repositories: ${{ steps.repos.outputs.hwinther }}
@@ -66,7 +66,7 @@ jobs:
         id: token-wshno
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ vars.AUTOMATION_APP_ID }}
+          client-id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
           owner: wshno
           repositories: ${{ steps.repos.outputs.wshno }}
