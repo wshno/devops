@@ -510,13 +510,22 @@ def cell_warnings(q):
     return f'<span class="{"ok" if total == 0 else "warn" if total < 20 else "bad"} num">{total}</span>'
 
 
-def cell_vulns(q):
+def cell_vulns(q, details=None):
     if not q or not any("vulnerabilities" in c for c in q["components"].values()):
         return ""
-    v = q["totals"]["vulnerabilities"]
-    crit, high = v["bySeverity"]["critical"], v["bySeverity"]["high"]
+    groups = cves(details) if details and details.get("vulnerabilities") is not None else None
+    if groups is None:  # no details.json: package-match counts from the summary
+        v = q["totals"]["vulnerabilities"]
+        crit, high = v["bySeverity"]["critical"], v["bySeverity"]["high"]
+        cls = "bad" if crit else "warn" if high else "ok"
+        return f'<span class="{cls} num">{crit} crit, {high} high</span><br><span class="muted num">{v["total"]} total, {v["fixable"]} fixable</span>'
+    crit = sum(1 for g in groups if g["severity"] == "critical")
+    high = sum(1 for g in groups if g["severity"] == "high")
+    severe_fixable = sum(1 for g in groups if g["severity"] in ("critical", "high") and g["fixedIn"])
     cls = "bad" if crit else "warn" if high else "ok"
-    return f'<span class="{cls} num">{crit} crit, {high} high</span><br><span class="muted num">{v["total"]} total, {v["fixable"]} fixable</span>'
+    note = f"{severe_fixable} of them fixable, " if crit + high else ""
+    return (f'<span class="{cls} num">{crit} crit, {high} high CVEs</span><br>'
+            f'<span class="muted num">{note}{len(groups)} advisories in all</span>')
 
 
 def repo_cell(r):
@@ -632,27 +641,51 @@ def warnings_section(details):
             '<th>Examples</th></tr></thead><tbody>' + "\n".join(rows) + "</tbody></table></div>")
 
 
+SEVERITY_ORDER = ["critical", "high", "medium", "low", "negligible", "unknown"]
+
+
+def cves(details):
+    """Vulnerability matches grouped per advisory: one CVE in five packages built from the same source
+    (gcc-14-base, libgcc-s1, libstdc++6, ...) is one problem, not five."""
+    groups = {}
+    for v in details.get("vulnerabilities") or []:
+        g = groups.setdefault(v["id"], {"id": v["id"], "severity": v["severity"], "url": v.get("url"),
+                                        "packages": [], "fixedIn": set(), "components": set()})
+        if SEVERITY_ORDER.index(v["severity"]) < SEVERITY_ORDER.index(g["severity"]):
+            g["severity"] = v["severity"]
+        g["packages"].append(v)
+        g["fixedIn"].update(v["fixedIn"])
+        g["components"].add(v["component"])
+    return sorted(groups.values(), key=lambda g: (SEVERITY_ORDER.index(g["severity"]), g["id"] or ""))
+
+
 def vulnerabilities_section(details):
-    vulns = details.get("vulnerabilities") or []
-    if not vulns:
+    groups = cves(details)
+    if not groups:
         return '<p class="empty">No vulnerabilities in this run.</p>'
-    severe = sum(1 for v in vulns if v["severity"] in ("critical", "high"))
-    fixable = sum(1 for v in vulns if v["fixedIn"])
+    severe = sum(1 for g in groups if g["severity"] in ("critical", "high"))
+    fixable = sum(1 for g in groups if g["fixedIn"])
     rows = []
-    for v in vulns:
-        tags = ("severe " if v["severity"] in ("critical", "high") else "") + ("fixable" if v["fixedIn"] else "")
-        ident = f'<a href="{esc(v["url"])}">{esc(v["id"])}</a>' if v.get("url") else esc(v["id"])
-        rows.append(
-            f'<tr data-tags="{tags.strip()}"><td><span class="chip {esc(v["severity"])}">{esc(v["severity"])}</span></td>'
-            f'<td>{ident}</td><td><code>{esc(v["package"])}</code> <span class="muted">{esc(v["type"] or "")}</span></td>'
-            f'<td class="num">{esc(v["version"])}</td><td class="num">{esc(", ".join(v["fixedIn"])) or "<span class=muted>–</span>"}</td>'
-            f'<td class="muted">{esc(v["component"])}</td></tr>'
+    for g in groups:
+        tags = ("severe " if g["severity"] in ("critical", "high") else "") + ("fixable" if g["fixedIn"] else "")
+        ident = f'<a href="{esc(g["url"])}">{esc(g["id"])}</a>' if g.get("url") else esc(g["id"])
+        packages = "<br>".join(
+            f'<code>{esc(p["package"])}</code> <span class="muted">{esc(p["version"])} ({esc(p["type"] or "")})</span>'
+            for p in sorted(g["packages"], key=lambda p: p["package"] or "")
         )
+        fixed = esc(", ".join(sorted(g["fixedIn"]))) or '<span class="muted">no fix yet</span>'
+        rows.append(
+            f'<tr data-tags="{tags.strip()}"><td><span class="chip {esc(g["severity"])}">{esc(g["severity"])}</span></td>'
+            f'<td>{ident}</td><td>{packages}</td><td class="num">{fixed}</td>'
+            f'<td class="muted">{esc(", ".join(sorted(g["components"])))}</td></tr>'
+        )
+    matches = len(details.get("vulnerabilities") or [])
     return (
-        filter_buttons("vuln-table", [("severe", f"Critical & high ({severe})"), ("fixable", f"Fixable ({fixable})"),
-                                      ("all", f"All ({len(vulns)})")])
-        + '<div class="wrap fit"><table id="vuln-table" class="narrow"><thead><tr><th>Severity</th><th>Id</th><th>Package</th>'
-        + '<th>Version</th><th>Fixed in</th><th>Image</th></tr></thead><tbody>'
+        f'<p class="muted">{len(groups)} advisories across {matches} package matches.</p>'
+        + filter_buttons("vuln-table", [("severe", f"Critical & high ({severe})"), ("fixable", f"Fixable ({fixable})"),
+                                        ("all", f"All ({len(groups)})")])
+        + '<div class="wrap fit"><table id="vuln-table" class="narrow"><thead><tr><th>Severity</th><th>Advisory</th>'
+        + '<th>Packages</th><th>Fixed in</th><th>Image</th></tr></thead><tbody>'
         + "\n".join(rows) + "</tbody></table></div>"
     )
 
@@ -694,7 +727,7 @@ def render(data):
             f"<tr>{repo_cell(r)}"
             f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td class=\"prs\">{cell_prs(r)}</td><td>{cell_frameworks(r)}</td>"
             f"<td>{cell_tests(q)}</td><td>{drill(r, 'coverage', cell_coverage(q, data['coverageThreshold']))}</td>"
-            f"<td>{drill(r, 'warnings', cell_warnings(q))}</td><td>{drill(r, 'vulnerabilities', cell_vulns(q))}</td>"
+            f"<td>{drill(r, 'warnings', cell_warnings(q))}</td><td>{drill(r, 'vulnerabilities', cell_vulns(q, r.get('qualityDetails')))}</td>"
             "</tr>"
         )
     return f"""<!doctype html>
