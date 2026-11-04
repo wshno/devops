@@ -30,6 +30,7 @@ import os
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from base64 import b64decode
@@ -319,16 +320,28 @@ def collect(config):
 
 # --- HTML -----------------------------------------------------------------------------------------
 
+# Light by default; dark when the OS/browser asks for it (theme "auto"), or when the viewer picks
+# it with the toggle (data-theme on <html>, remembered in localStorage).
+DARK = """--bg:#151514; --card:#1e1e1c; --text:#ecebe6; --muted:#9c9b94; --line:#33322e;
+  --ok:#6fd08c; --ok-bg:#16301f; --warn:#f0c46a; --warn-bg:#3a2d10; --bad:#ff8a7a; --bad-bg:#3d1a16; --link:#8ab4ff;
+  color-scheme:dark;"""
+
 STYLE = """
 :root { --bg:#f7f7f5; --card:#fff; --text:#1d1d1b; --muted:#6b6b66; --line:#e3e2dc;
-  --ok:#1f7a3a; --ok-bg:#e3f3e8; --warn:#8a5a00; --warn-bg:#fbefd5; --bad:#b42318; --bad-bg:#fde7e4; --link:#1d5fbf; }
-@media (prefers-color-scheme: dark) { :root { --bg:#151514; --card:#1e1e1c; --text:#ecebe6; --muted:#9c9b94; --line:#33322e;
-  --ok:#6fd08c; --ok-bg:#16301f; --warn:#f0c46a; --warn-bg:#3a2d10; --bad:#ff8a7a; --bad-bg:#3d1a16; --link:#8ab4ff; } }
+  --ok:#1f7a3a; --ok-bg:#e3f3e8; --warn:#8a5a00; --warn-bg:#fbefd5; --bad:#b42318; --bad-bg:#fde7e4; --link:#1d5fbf;
+  color-scheme:light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { """ + DARK + """ } }
+:root[data-theme="dark"] { """ + DARK + """ }
+header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap }
+.theme { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card) }
+.theme button { font:inherit; font-size:12px; color:var(--muted); background:none; border:0; padding:5px 10px; cursor:pointer }
+.theme button + button { border-left:1px solid var(--line) }
+.theme button[aria-pressed="true"] { color:var(--text); background:var(--line) }
 * { box-sizing:border-box }
 body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif }
 main { max-width:1400px; margin:0 auto; padding:24px 16px }
 h1 { font-size:20px; margin:0 0 4px } h2 { font-size:16px; margin:28px 0 10px }
-table.narrow { min-width:0; width:auto } table.narrow td.num { text-align:right; min-width:90px } .sub { color:var(--muted); margin:0 0 20px }
+.wrap.fit { display:inline-block; max-width:100% } table.narrow { min-width:0; width:auto } .prs { white-space:nowrap } table.narrow td.num { text-align:right; min-width:90px } .sub { color:var(--muted); margin:0 0 20px }
 .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px }
 table { border-collapse:collapse; width:100%; min-width:1100px }
 th, td { text-align:left; vertical-align:top; padding:10px 12px; border-bottom:1px solid var(--line) }
@@ -342,6 +355,39 @@ a { color:var(--link); text-decoration:none } a:hover { text-decoration:underlin
 .ok { color:var(--ok) } .warn { color:var(--warn) } .bad { color:var(--bad); font-weight:600 }
 .kind { font-size:11px; color:var(--muted); margin-left:6px }
 """
+
+
+# In <head>, so the chosen theme applies before the first paint. localStorage can be unavailable
+# (private windows, blocked storage): then the page simply follows the OS.
+THEME_SCRIPT = """<script>
+(function () {
+  var key = "devops-report-theme";
+  function stored() { try { return localStorage.getItem(key) || "auto"; } catch (e) { return "auto"; } }
+  function apply(theme) {
+    if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    document.querySelectorAll(".theme button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.theme === theme));
+    });
+  }
+  apply(stored());
+  document.addEventListener("DOMContentLoaded", function () {
+    apply(stored());
+    document.querySelectorAll(".theme button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        try { localStorage.setItem(key, b.dataset.theme); } catch (e) {}
+        apply(b.dataset.theme);
+      });
+    });
+  });
+})();
+</script>"""
+
+THEME_TOGGLE = """<div class="theme" role="group" aria-label="Theme">
+<button type="button" data-theme="auto" aria-pressed="true">Auto</button>
+<button type="button" data-theme="light" aria-pressed="false">Light</button>
+<button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+</div>"""
 
 
 def esc(value):
@@ -369,14 +415,31 @@ def cell_drift(r):
             f'<span class="num muted">{d["files"]}{more} files, +{d["additions"]} −{d["deletions"]}</span>')
 
 
+PR_QUERIES = {
+    "other": "is:pr is:open -author:app/dependabot -author:app/renovate",
+    "dependabot": "is:pr is:open author:app/dependabot",
+    "renovate": "is:pr is:open author:app/renovate",
+}
+
+
+def pr_link(r, kind, label=""):
+    """The count of one PR kind, linked to the repo's pull request list filtered the same way."""
+    count = r["prs"][kind]
+    if not count:
+        return ""
+    url = f'{r["url"]}/pulls?q={urllib.parse.quote_plus(PR_QUERIES[kind])}'
+    return f'<a class="num" href="{esc(url)}">{count}</a>{label}'
+
+
 def cell_prs(r):
     p = r["prs"]
-    parts = [f'<span class="num">{p["other"]}</span> open']
-    if p["dependabot"]:
-        parts.append(f'<span class="num">{p["dependabot"]}</span> Dependabot')
-    if p["renovate"]:
-        parts.append(f'<span class="num">{p["renovate"]}</span> Renovate')
-    return "<br>".join(parts) if p["total"] else '<span class="muted">none</span>'
+    if not p["total"]:
+        return '<span class="muted">none</span>'
+    parts = [pr_link(r, "other", " open") or '<span class="num">0</span> open']
+    for kind, label in (("dependabot", " Dependabot"), ("renovate", " Renovate")):
+        if p[kind]:
+            parts.append(pr_link(r, kind, label))
+    return "<br>".join(parts)
 
 
 def chip(status, label, title, newer=False):
@@ -452,25 +515,24 @@ def repo_cell(r):
 def render(data):
     pr_rows = []
     for r in (r for r in data["repos"] if r["report"] == "prs"):
-        p = r["prs"]
         pr_rows.append(
-            f'<tr>{repo_cell(r)}<td class="num">{p["other"] or ""}</td>'
-            f'<td class="num">{p["dependabot"] or ""}</td><td class="num">{p["renovate"] or ""}</td></tr>'
+            f'<tr>{repo_cell(r)}<td class="num">{pr_link(r, "other")}</td>'
+            f'<td class="num">{pr_link(r, "dependabot")}</td><td class="num">{pr_link(r, "renovate")}</td></tr>'
         )
     rows = []
     for r in (r for r in data["repos"] if r["report"] == "full"):
         q = r["quality"]
         rows.append(
             f"<tr>{repo_cell(r)}"
-            f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td>{cell_prs(r)}</td><td>{cell_frameworks(r)}</td>"
+            f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td class=\"prs\">{cell_prs(r)}</td><td>{cell_frameworks(r)}</td>"
             f"<td>{cell_tests(q)}</td><td>{cell_coverage(q)}</td><td>{cell_warnings(q)}</td><td>{cell_vulns(q)}</td>"
             "</tr>"
         )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Repository report</title><style>{STYLE}</style></head>
+<title>Repository report</title><style>{STYLE}</style>{THEME_SCRIPT}</head>
 <body><main>
-<h1>Repository report</h1>
+<header><h1>Repository report</h1>{THEME_TOGGLE}</header>
 <p class="sub">Generated {esc(data["generatedAt"])} · newest .NET: {data["dotnetLatestMajor"]} ·
 <span class="chip ok">at or above minimum</span><span class="chip below">below minimum / EOL</span>
 <span class="muted">\u2191 newer major on npm</span> ·
@@ -482,7 +544,7 @@ def render(data):
 {chr(10).join(rows)}
 </tbody></table></div>
 {f'''<h2>Open pull requests</h2>
-<div class="wrap"><table class="narrow">
+<div class="wrap fit"><table class="narrow">
 <thead><tr><th>Repository</th><th>Open</th><th>Dependabot</th><th>Renovate</th></tr></thead>
 <tbody>
 {chr(10).join(pr_rows)}
