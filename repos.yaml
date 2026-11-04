@@ -1,0 +1,25 @@
+# Repositories in the daily report (report/generate.py). Order here is the order on the page.
+#
+#   repo   owner/name
+#   kind   app (deployed; has images and e2e) or library (packages, workflows)
+#   npm    npm packages whose version is compared with npm's latest (default: `npm_defaults`)
+
+npm_defaults: [react, react-router, vite, typescript, expo, react-native]
+
+repos:
+  - repo: hwinther/ClutterStock
+    kind: app
+  - repo: hwinther/skylens
+    kind: app
+  - repo: hwinther/pbs-browser
+    kind: app
+  - repo: hwinther/ddnsadmin
+    kind: app
+  - repo: hwinther/test
+    kind: app
+  - repo: wshno/wshno
+    kind: app
+  - repo: wshno/frontend-packages
+    kind: library
+  - repo: hwinther/reusable-workflows
+    kind: library
