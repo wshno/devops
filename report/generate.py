@@ -272,16 +272,18 @@ def quality(repo, owner, branch):
         )
         try:
             urllib.request.build_opener(NoRedirect).open(request, timeout=30)
-            return None
+            return None, None
         except urllib.error.HTTPError as redirect:
             if redirect.code not in (301, 302, 303, 307):
                 raise
             blob = get(redirect.headers["Location"], raw=True)
         with zipfile.ZipFile(io.BytesIO(blob)) as archive:
             summary = json.loads(archive.read("summary.json"))
+            names = archive.namelist()
+            details = json.loads(archive.read("details.json")) if "details.json" in names else None
         summary["ageDays"] = days_since(artifact["created_at"])
-        return summary
-    return None
+        return summary, details
+    return None, None
 
 
 def collect(config):
@@ -313,9 +315,10 @@ def collect(config):
             "unreleased": drift,
             "prs": open_prs(repo, owner),
             "frameworks": frameworks(repo, owner, branch, {**config["minimums"], **entry.get("minimums", {})}, dotnet, pythons, npm_cache),
-            "quality": quality(repo, owner, branch),
         })
-    return {"generatedAt": NOW.strftime("%Y-%m-%dT%H:%M:%SZ"), "dotnetLatestMajor": dotnet[1], "minimums": config["minimums"], "repos": rows}
+        rows[-1]["quality"], rows[-1]["qualityDetails"] = quality(repo, owner, branch)
+    return {"generatedAt": NOW.strftime("%Y-%m-%dT%H:%M:%SZ"), "dotnetLatestMajor": dotnet[1], "minimums": config["minimums"],
+            "coverageThreshold": config.get("coverage_threshold", 70), "repos": rows}
 
 
 # --- HTML -----------------------------------------------------------------------------------------
@@ -333,10 +336,10 @@ STYLE = """
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { """ + DARK + """ } }
 :root[data-theme="dark"] { """ + DARK + """ }
 header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap }
-.theme { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card) }
-.theme button { font:inherit; font-size:12px; color:var(--muted); background:none; border:0; padding:5px 10px; cursor:pointer }
-.theme button + button { border-left:1px solid var(--line) }
-.theme button[aria-pressed="true"] { color:var(--text); background:var(--line) }
+.theme, .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card) }
+.theme button, .seg button { font:inherit; font-size:12px; color:var(--muted); background:none; border:0; padding:5px 10px; cursor:pointer }
+.theme button + button, .seg button + button { border-left:1px solid var(--line) }
+.theme button[aria-pressed="true"], .seg button[aria-pressed="true"] { color:var(--text); background:var(--line) }
 * { box-sizing:border-box }
 body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif }
 main { max-width:1400px; margin:0 auto; padding:24px 16px }
@@ -348,6 +351,7 @@ th, td { text-align:left; vertical-align:top; padding:10px 12px; border-bottom:1
 th { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; white-space:nowrap }
 tr:last-child td { border-bottom:0 }
 a { color:var(--link); text-decoration:none } a:hover { text-decoration:underline }
+a.drill { color:inherit; display:inline-block } a.drill:hover { text-decoration:none; outline:1px dashed var(--line); outline-offset:3px }
 .muted { color:var(--muted) } .num { font-variant-numeric:tabular-nums }
 .chip { display:inline-block; padding:1px 7px; margin:0 4px 4px 0; border-radius:999px; font-size:12px; white-space:nowrap }
 .chip.ok { color:var(--ok); background:var(--ok-bg) } .chip.below { color:var(--bad); background:var(--bad-bg) }
@@ -480,14 +484,21 @@ def cell_tests(q):
     return "<br>".join(out)
 
 
-def cell_coverage(q):
+def drill(r, anchor, html_):
+    """Wrap a quality cell in a link to the repo's drill-down page when it has details."""
+    if not r.get("qualityDetails") or not html_:
+        return html_
+    return f'<a class="drill" href="{esc(page_name(r["repo"]))}#{anchor}">{html_}</a>'
+
+
+def cell_coverage(q, threshold):
     if not q:
         return ""
     out = []
     for name, c in q["components"].items():
         pct = (c.get("coverage") or {}).get("lines", {}).get("percent")
         if pct is not None:
-            cls = "ok" if pct >= 80 else "warn" if pct >= 60 else "bad"
+            cls = "ok" if pct >= threshold else "warn" if pct >= threshold - 15 else "bad"
             out.append(f'<span class="{cls} num">{pct:.0f} %</span> <span class="muted">{esc(name)}</span>')
     return "<br>".join(out)
 
@@ -512,6 +523,163 @@ def repo_cell(r):
     return f'<td><a href="{esc(r["url"])}">{esc(r["repo"])}</a><span class="kind">{esc(r["kind"])}{" · private" if r["private"] else ""}</span></td>'
 
 
+# --- Per-repo drill-down page ----------------------------------------------------------------------
+
+PAGE_STYLE = """
+.filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px }
+.filters .seg button { font-size:13px }
+.filters input { font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--line); border-radius:8px;
+  background:var(--card); color:var(--text); min-width:220px }
+.bar { display:inline-block; width:60px; height:6px; border-radius:3px; background:var(--line); vertical-align:middle;
+  margin-right:6px; overflow:hidden }
+.bar i { display:block; height:100%; background:var(--ok) } .bar.low i { background:var(--bad) }
+td.file { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12px; word-break:break-all }
+details summary { cursor:pointer; color:var(--link) }
+details ul { margin:6px 0 0; padding-left:18px } details li { margin:2px 0 }
+.chip.critical, .chip.high { color:var(--bad); background:var(--bad-bg) }
+.chip.medium { color:var(--warn); background:var(--warn-bg) }
+.chip.low, .chip.negligible, .chip.unknown { color:var(--muted); background:var(--line) }
+.empty { color:var(--muted); padding:12px 0 }
+"""
+
+# Filter buttons share the theme toggle's look. Each group filters the rows of one table by a
+# data-* attribute; the search box narrows the coverage table by file name.
+PAGE_SCRIPT = """<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("[data-filter-group]").forEach(function (group) {
+    var table = document.getElementById(group.dataset.filterGroup);
+    var search = group.querySelector("input");
+    function apply() {
+      var active = group.querySelector("button[aria-pressed=true]").dataset.value;
+      var text = search ? search.value.toLowerCase() : "";
+      table.querySelectorAll("tbody tr").forEach(function (row) {
+        var match = active === "all" || (" " + row.dataset.tags + " ").indexOf(" " + active + " ") >= 0;
+        if (text && (row.dataset.file || "").indexOf(text) < 0) match = false;
+        row.hidden = !match;
+      });
+    }
+    group.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        group.querySelectorAll("button").forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+        apply();
+      });
+    });
+    if (search) search.addEventListener("input", apply);
+    apply();
+  });
+});
+</script>"""
+
+
+def page_name(repo):
+    return f"repo-{repo.replace('/', '-')}.html"
+
+
+def filter_buttons(table_id, options, search=None):
+    buttons = "".join(
+        f'<button type="button" data-value="{esc(value)}" aria-pressed="{str(i == 0).lower()}">{esc(label)}</button>'
+        for i, (value, label) in enumerate(options)
+    )
+    box = f'<input type="search" placeholder="{esc(search)}" aria-label="{esc(search)}">' if search else ""
+    return f'<div class="filters" data-filter-group="{table_id}"><div class="seg" role="group">{buttons}</div>{box}</div>'
+
+
+def coverage_section(details, threshold):
+    files = [dict(f, component=name) for name, c in (details.get("coverage") or {}).items() for f in c["files"]]
+    if not files:
+        return '<p class="empty">No per-file coverage in this run.</p>'
+    files.sort(key=lambda f: (f["lines"]["percent"] if f["lines"]["percent"] is not None else 101, f["file"]))
+    below = sum(1 for f in files if (f["lines"]["percent"] or 0) < threshold)
+    full = sum(1 for f in files if f["lines"]["percent"] == 100)
+    rows = []
+    for f in files:
+        pct = f["lines"]["percent"] or 0
+        tags = ("below" if pct < threshold else "above") + (" full" if pct == 100 else "")
+        branches = f["branches"]["percent"]
+        rows.append(
+            f'<tr data-tags="{tags}" data-file="{esc(f["file"].lower())}">'
+            f'<td class="file">{esc(f["file"])}</td><td class="muted">{esc(f["component"])}</td>'
+            f'<td class="num">{f["lines"]["covered"]}/{f["lines"]["total"]}</td>'
+            f'<td class="num"><span class="bar{" low" if pct < threshold else ""}"><i style="width:{pct:.0f}%"></i></span>{pct:.1f} %</td>'
+            f'<td class="num muted">{"" if branches is None else f"{branches:.0f} %"}</td></tr>'
+        )
+    return (
+        filter_buttons("coverage-table", [("below", f"Under {threshold} % ({below})"), ("all", f"All ({len(files)})"),
+                                          ("full", f"100 % ({full})")], search="Filter files")
+        + '<div class="wrap fit"><table id="coverage-table" class="narrow"><thead><tr><th>File</th><th>Component</th>'
+        + '<th>Lines</th><th>Line coverage</th><th>Branches</th></tr></thead><tbody>'
+        + "\n".join(rows) + "</tbody></table></div>"
+    )
+
+
+def warnings_section(details):
+    groups = [dict(g, component=name) for name, gs in (details.get("warnings") or {}).items() for g in gs]
+    if not groups:
+        return '<p class="empty">No warnings in this run.</p>'
+    rows = []
+    for g in sorted(groups, key=lambda g: -g["count"]):
+        examples = "".join(
+            f'<li><code>{esc(e["file"])}{":" + str(e["line"]) if e["line"] else ""}</code> {esc(e["message"])}</li>'
+            for e in g["examples"]
+        )
+        more = f' <span class="muted">(first {len(g["examples"])})</span>' if g["count"] > len(g["examples"]) else ""
+        rows.append(
+            f'<tr><td><code>{esc(g["code"])}</code></td><td class="num">{g["count"]}</td>'
+            f'<td class="muted">{esc(g["component"])} / {esc(g["source"])}</td>'
+            f'<td><details><summary>examples{more}</summary><ul>{examples}</ul></details></td></tr>'
+        )
+    return ('<div class="wrap fit"><table class="narrow"><thead><tr><th>Code</th><th>Count</th><th>Where</th>'
+            '<th>Examples</th></tr></thead><tbody>' + "\n".join(rows) + "</tbody></table></div>")
+
+
+def vulnerabilities_section(details):
+    vulns = details.get("vulnerabilities") or []
+    if not vulns:
+        return '<p class="empty">No vulnerabilities in this run.</p>'
+    severe = sum(1 for v in vulns if v["severity"] in ("critical", "high"))
+    fixable = sum(1 for v in vulns if v["fixedIn"])
+    rows = []
+    for v in vulns:
+        tags = ("severe " if v["severity"] in ("critical", "high") else "") + ("fixable" if v["fixedIn"] else "")
+        ident = f'<a href="{esc(v["url"])}">{esc(v["id"])}</a>' if v.get("url") else esc(v["id"])
+        rows.append(
+            f'<tr data-tags="{tags.strip()}"><td><span class="chip {esc(v["severity"])}">{esc(v["severity"])}</span></td>'
+            f'<td>{ident}</td><td><code>{esc(v["package"])}</code> <span class="muted">{esc(v["type"] or "")}</span></td>'
+            f'<td class="num">{esc(v["version"])}</td><td class="num">{esc(", ".join(v["fixedIn"])) or "<span class=muted>–</span>"}</td>'
+            f'<td class="muted">{esc(v["component"])}</td></tr>'
+        )
+    return (
+        filter_buttons("vuln-table", [("severe", f"Critical & high ({severe})"), ("fixable", f"Fixable ({fixable})"),
+                                      ("all", f"All ({len(vulns)})")])
+        + '<div class="wrap fit"><table id="vuln-table" class="narrow"><thead><tr><th>Severity</th><th>Id</th><th>Package</th>'
+        + '<th>Version</th><th>Fixed in</th><th>Image</th></tr></thead><tbody>'
+        + "\n".join(rows) + "</tbody></table></div>"
+    )
+
+
+def render_repo_page(r, data):
+    q, details = r["quality"], r.get("qualityDetails") or {}
+    run = q.get("run", {}).get("url", "")
+    commit = (q.get("commit") or "")[:7]
+    threshold = data["coverageThreshold"]
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(r["repo"])} · quality</title><style>{STYLE}{PAGE_STYLE}</style>{THEME_SCRIPT}{PAGE_SCRIPT}</head>
+<body><main>
+<header><h1><a href="index.html">Repository report</a> / <a href="{esc(r["url"])}">{esc(r["repo"])}</a></h1>{THEME_TOGGLE}</header>
+<p class="sub">Quality from <a href="{esc(run)}">run {esc(q.get("run", {}).get("id", ""))}</a> on {esc(commit)}
+({esc(q.get("version", ""))}), {q.get("ageDays", 0)} d old ·
+<a href="#coverage">coverage</a> · <a href="#warnings">warnings</a> · <a href="#vulnerabilities">vulnerabilities</a></p>
+<h2 id="coverage">Line coverage per file</h2>
+{coverage_section(details, threshold)}
+<h2 id="warnings">Warnings</h2>
+{warnings_section(details)}
+<h2 id="vulnerabilities">Vulnerabilities</h2>
+{vulnerabilities_section(details)}
+</main></body></html>
+"""
+
+
 def render(data):
     pr_rows = []
     for r in (r for r in data["repos"] if r["report"] == "prs"):
@@ -525,7 +693,8 @@ def render(data):
         rows.append(
             f"<tr>{repo_cell(r)}"
             f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td class=\"prs\">{cell_prs(r)}</td><td>{cell_frameworks(r)}</td>"
-            f"<td>{cell_tests(q)}</td><td>{cell_coverage(q)}</td><td>{cell_warnings(q)}</td><td>{cell_vulns(q)}</td>"
+            f"<td>{cell_tests(q)}</td><td>{drill(r, 'coverage', cell_coverage(q, data['coverageThreshold']))}</td>"
+            f"<td>{drill(r, 'warnings', cell_warnings(q))}</td><td>{drill(r, 'vulnerabilities', cell_vulns(q))}</td>"
             "</tr>"
         )
     return f"""<!doctype html>
@@ -560,7 +729,11 @@ def main():
     out = Path(sys.argv[2])
     out.mkdir(parents=True, exist_ok=True)
     data = collect(config)
-    (out / "data.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    for r in data["repos"]:
+        if r.get("qualityDetails"):
+            (out / page_name(r["repo"])).write_text(render_repo_page(r, data), encoding="utf-8")
+    public = {**data, "repos": [{k: v for k, v in r.items() if k != "qualityDetails"} for r in data["repos"]]}
+    (out / "data.json").write_text(json.dumps(public, indent=2) + "\n", encoding="utf-8")
     (out / "index.html").write_text(render(data), encoding="utf-8")
 
 
