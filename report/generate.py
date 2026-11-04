@@ -9,8 +9,13 @@ Writes <out-dir>/index.html and <out-dir>/data.json. Per repo, from the GitHub A
   unreleased  commits and changed files/lines from that tag to the default branch, files under
               .github/ left out (workflow-only changes need no release)
   prs         open pull requests: Dependabot, Renovate and the rest
-  frameworks  TargetFramework(s) from *.csproj / Directory.Build.props against endoflife.date's
-              .NET cycles, and the `npm` packages from every package.json against npm's latest
+  frameworks  Node (package.json engines, .nvmrc/.node-version, Dockerfile `FROM node:N`, workflow
+              node_version / node-version), Python (pyproject.toml requires-python, .python-version,
+              Dockerfile `FROM python:X.Y`, workflow python_version / python-version; red once
+              endoflife.date marks it EOL), .NET TargetFramework(s) from *.csproj /
+              Directory.Build.props, and the npm packages in `minimums` from every package.json,
+              each against its minimum in repos.yaml: below is red, at or above green. .NET is
+              also red once endoflife.date marks it EOL. npm's latest shows in the tooltip.
   quality     summary.json (hwinther/reusable-workflows docs/quality-artifact.md) from the newest
               `quality-summary` workflow artifact on the default branch
 
@@ -35,7 +40,16 @@ import yaml
 
 API = os.environ.get("GITHUB_API_URL", "https://api.github.com")
 NOW = datetime.now(timezone.utc)
-PROJECT_FILE = re.compile(r"(^|/)([^/]+\.csproj|Directory\.Build\.props|package\.json)$")
+PROJECT_FILE = re.compile(
+    r"(^|/)([^/]+\.csproj|Directory\.Build\.props|package\.json|\.nvmrc|\.node-version|Dockerfile[^/]*"
+    r"|pyproject\.toml|\.python-version)$"
+    r"|^\.github/workflows/[^/]+\.ya?ml$"
+)
+DOCKER_NODE = re.compile(r"^\s*FROM\s+(?:--platform=\S+\s+)?(?:\S+/)?node:(\d+)", re.MULTILINE | re.IGNORECASE)
+WORKFLOW_NODE = re.compile(r"node[_-]version:\s*[\"']?(\d+)")
+DOCKER_PYTHON = re.compile(r"^\s*FROM\s+(?:--platform=\S+\s+)?(?:\S+/)?python:(\d+\.\d+)", re.MULTILINE | re.IGNORECASE)
+WORKFLOW_PYTHON = re.compile(r"python[_-]version:\s*[\"']?(\d+\.\d+)")
+REQUIRES_PYTHON = re.compile(r"^\s*requires-python\s*=\s*[\"']([^\"']+)", re.MULTILINE)
 TARGET_FRAMEWORK = re.compile(r"<TargetFrameworks?>([^<]+)</TargetFrameworks?>")
 NET_TFM = re.compile(r"^net(\d+)\.(\d+)")
 
@@ -120,6 +134,14 @@ def dotnet_cycles():
     return {c["cycle"].split(".")[0]: c for c in cycles}, latest
 
 
+def python_cycles():
+    return {c["cycle"]: c for c in get("https://endoflife.date/api/python.json")}
+
+
+def past_eol(cycle):
+    return bool(cycle and cycle.get("eol") not in (None, False, True) and cycle["eol"] < NOW.strftime("%Y-%m-%d"))
+
+
 def npm_latest(package, cache):
     if package not in cache:
         try:
@@ -130,56 +152,112 @@ def npm_latest(package, cache):
 
 
 def version_tuple(spec):
-    match = re.search(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", spec or "")
+    match = re.search(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", str(spec or ""))
     return tuple(int(x or 0) for x in match.groups()) if match else None
 
 
-def frameworks(repo, owner, branch, npm_packages, dotnet, npm_cache):
+def meets(version, minimum):
+    """version >= minimum, comparing as many parts as the minimum gives ("19", "0.88")."""
+    parts = len(str(minimum).split("."))
+    return version_tuple(version)[:parts] >= version_tuple(minimum)[:parts]
+
+
+def frameworks(repo, owner, branch, minimums, dotnet, pythons, npm_cache):
     tree = try_gh(f"/repos/{repo}/git/trees/{branch}?recursive=1", owner)
     paths = [t["path"] for t in (tree or {}).get("tree", []) if t["type"] == "blob" and PROJECT_FILE.search(t["path"])]
-    tfms, npm = set(), {}
-    for path in paths[:60]:
+    npm_packages = [p for p in minimums if p not in ("node", "dotnet", "python")]
+    tfms, npm, node, python = set(), {}, {}, {}
+    for path in paths[:80]:
         content = try_gh(f"/repos/{repo}/contents/{path}?ref={branch}", owner)
         if not content or "content" not in content:
             continue
         text = b64decode(content["content"]).decode("utf-8", "replace")
-        if path.endswith("package.json"):
+        name = path.rsplit("/", 1)[-1]
+        if name == "package.json":
             try:
                 manifest = json.loads(text)
             except ValueError:
                 continue
+            engine = (manifest.get("engines") or {}).get("node")
+            if version_tuple(engine):
+                node[path] = version_tuple(engine)[0]
             deps = {**manifest.get("devDependencies", {}), **manifest.get("dependencies", {})}
             for package in npm_packages:
                 if package in deps and version_tuple(deps[package]):
-                    npm.setdefault(package, set()).add(deps[package].lstrip("^~="))
+                    npm.setdefault(package, {}).setdefault(deps[package].lstrip("^~="), []).append(path)
+        elif name in (".nvmrc", ".node-version"):
+            if version_tuple(text.strip()):
+                node[path] = version_tuple(text.strip())[0]
+        elif name in ("pyproject.toml", ".python-version"):
+            found = REQUIRES_PYTHON.findall(text) if name == "pyproject.toml" else [text.strip()]
+            versions = [v for v in found if version_tuple(v)]
+            if versions:
+                python[path] = min(versions, key=version_tuple)
+        elif name.startswith("Dockerfile"):
+            majors = [int(m) for m in DOCKER_NODE.findall(text)]
+            if majors:
+                node[path] = min(majors)
+            if DOCKER_PYTHON.findall(text):
+                python[path] = min(DOCKER_PYTHON.findall(text), key=version_tuple)
+        elif path.startswith(".github/workflows/"):
+            majors = [int(m) for m in WORKFLOW_NODE.findall(text)]
+            if majors:
+                node[path] = min(majors)
+            if WORKFLOW_PYTHON.findall(text):
+                python[path] = min(WORKFLOW_PYTHON.findall(text), key=version_tuple)
         else:
             for value in TARGET_FRAMEWORK.findall(text):
                 tfms.update(t.strip() for t in value.split(";") if NET_TFM.match(t.strip()))
+
+    node_out = None
+    if node:
+        lowest, highest = min(node.values()), max(node.values())
+        minimum = minimums.get("node")
+        node_out = {
+            "version": str(lowest) if lowest == highest else f"{lowest}-{highest}",
+            "minimum": minimum,
+            "status": "unknown" if minimum is None else "ok" if meets(lowest, minimum) else "below",
+            "sources": dict(sorted(node.items())),
+        }
+
+    python_out = None
+    if python:
+        cycles_by_minor = {path: ".".join(map(str, version_tuple(v)[:2])) for path, v in python.items()}
+        lowest = min(cycles_by_minor.values(), key=version_tuple)
+        highest = max(cycles_by_minor.values(), key=version_tuple)
+        minimum = minimums.get("python")
+        below = minimum is not None and not meets(lowest, minimum)
+        cycle = pythons.get(lowest)
+        python_out = {
+            "version": lowest if lowest == highest else f"{lowest}-{highest}",
+            "minimum": minimum,
+            "eol": cycle.get("eol") if cycle else None,
+            "status": "below" if below or past_eol(cycle) else "unknown" if minimum is None else "ok",
+            "sources": dict(sorted(cycles_by_minor.items())),
+        }
 
     cycles, latest_major = dotnet
     dotnet_out = []
     for tfm in sorted(tfms, key=lambda t: version_tuple(t[3:])):
         major = NET_TFM.match(tfm).group(1)
         cycle = cycles.get(major)
-        eol = cycle and cycle.get("eol") not in (None, False, True) and cycle["eol"] < NOW.strftime("%Y-%m-%d")
-        status = "old" if eol or not cycle else "current" if int(major) >= latest_major else "behind"
-        dotnet_out.append({"tfm": tfm, "status": status, "eol": cycle.get("eol") if cycle else None, "latestMajor": latest_major})
+        eol = past_eol(cycle)
+        minimum = minimums.get("dotnet")
+        below = minimum is not None and not meets(major, minimum)
+        dotnet_out.append({
+            "tfm": tfm, "minimum": minimum, "eol": cycle.get("eol") if cycle else None, "latestMajor": latest_major,
+            "status": "below" if below or eol or not cycle else "ok",
+        })
 
     npm_out = []
     for package in npm_packages:
-        for spec in sorted(npm.get(package, ())):
-            latest = npm_latest(package, npm_cache)
-            have, newest = version_tuple(spec), version_tuple(latest)
-            if not newest:
-                status = "unknown"
-            elif have[0] < newest[0]:
-                status = "old"
-            elif have[:2] < newest[:2]:
-                status = "behind"
-            else:
-                status = "current"
-            npm_out.append({"name": package, "version": spec, "latest": latest, "status": status})
-    return {"dotnet": dotnet_out, "npm": npm_out}
+        for version, used_in in sorted(npm.get(package, {}).items()):
+            npm_out.append({
+                "name": package, "version": version, "minimum": minimums[package],
+                "latest": npm_latest(package, npm_cache),
+                "status": "ok" if meets(version, minimums[package]) else "below", "usedIn": sorted(used_in),
+            })
+    return {"node": node_out, "python": python_out, "dotnet": dotnet_out, "npm": npm_out}
 
 
 def quality(repo, owner, branch):
@@ -207,6 +285,7 @@ def quality(repo, owner, branch):
 
 def collect(config):
     dotnet = dotnet_cycles()
+    pythons = python_cycles()
     npm_cache = {}
     rows = []
     for entry in config["repos"]:
@@ -225,10 +304,10 @@ def collect(config):
             "release": release,
             "unreleased": drift,
             "prs": open_prs(repo, owner),
-            "frameworks": frameworks(repo, owner, branch, entry.get("npm", config.get("npm_defaults", [])), dotnet, npm_cache),
+            "frameworks": frameworks(repo, owner, branch, {**config["minimums"], **entry.get("minimums", {})}, dotnet, pythons, npm_cache),
             "quality": quality(repo, owner, branch),
         })
-    return {"generatedAt": NOW.strftime("%Y-%m-%dT%H:%M:%SZ"), "dotnetLatestMajor": dotnet[1], "repos": rows}
+    return {"generatedAt": NOW.strftime("%Y-%m-%dT%H:%M:%SZ"), "dotnetLatestMajor": dotnet[1], "minimums": config["minimums"], "repos": rows}
 
 
 # --- HTML -----------------------------------------------------------------------------------------
@@ -250,8 +329,8 @@ tr:last-child td { border-bottom:0 }
 a { color:var(--link); text-decoration:none } a:hover { text-decoration:underline }
 .muted { color:var(--muted) } .num { font-variant-numeric:tabular-nums }
 .chip { display:inline-block; padding:1px 7px; margin:0 4px 4px 0; border-radius:999px; font-size:12px; white-space:nowrap }
-.current { color:var(--ok); background:var(--ok-bg) } .behind { color:var(--warn); background:var(--warn-bg) }
-.old { color:var(--bad); background:var(--bad-bg) } .unknown { color:var(--muted); background:var(--line) }
+.chip.ok { color:var(--ok); background:var(--ok-bg) } .chip.below { color:var(--bad); background:var(--bad-bg) }
+.chip.unknown { color:var(--muted); background:var(--line) } .chip sup { font-size:10px; margin-left:2px }
 .ok { color:var(--ok) } .warn { color:var(--warn) } .bad { color:var(--bad); font-weight:600 }
 .kind { font-size:11px; color:var(--muted); margin-left:6px }
 """
@@ -292,11 +371,30 @@ def cell_prs(r):
     return "<br>".join(parts) if p["total"] else '<span class="muted">none</span>'
 
 
+def chip(status, label, title, newer=False):
+    mark = '<sup title="newer major on npm">\u2191</sup>' if newer else ""
+    return f'<span class="chip {status}" title="{esc(title)}">{esc(label)}{mark}</span>'
+
+
 def cell_frameworks(r):
     f = r["frameworks"]
-    chips = [f'<span class="chip {d["status"]}" title="EOL {esc(d["eol"])}">.NET {esc(d["tfm"][3:])}</span>' for d in f["dotnet"]]
-    chips += [f'<span class="chip {n["status"]}" title="latest {esc(n["latest"])}">{esc(n["name"])} {esc(n["version"])}</span>' for n in f["npm"]]
-    return "".join(chips) or '<span class="muted">–</span>'
+    chips = []
+    if f["node"]:
+        n = f["node"]
+        sources = ", ".join(f"{path}: {major}" for path, major in n["sources"].items())
+        chips.append(chip(n["status"], f"Node {n['version']}", f"minimum {n['minimum']} | {sources}"))
+    if f.get("python"):
+        py = f["python"]
+        sources = ", ".join(f"{path}: {v}" for path, v in py["sources"].items())
+        chips.append(chip(py["status"], f"Python {py['version']}", f"minimum {py['minimum']} | EOL {py['eol']} | {sources}"))
+    for d in f["dotnet"]:
+        chips.append(chip(d["status"], f".NET {d['tfm'][3:]}", f"minimum {d['minimum']} | EOL {d['eol']} | newest {d['latestMajor']}"))
+    for p in f["npm"]:
+        latest = version_tuple(p["latest"])
+        newer = bool(latest and latest[0] > version_tuple(p["version"])[0])
+        title = f"minimum {p['minimum']} | latest {p['latest']} | {', '.join(p['usedIn'])}"
+        chips.append(chip(p["status"], f"{p['name']} {p['version']}", title, newer))
+    return "".join(chips) or '<span class="muted">-</span>'
 
 
 def cell_tests(q):
@@ -356,7 +454,8 @@ def render(data):
 <body><main>
 <h1>Repository report</h1>
 <p class="sub">Generated {esc(data["generatedAt"])} · newest .NET: {data["dotnetLatestMajor"]} ·
-<span class="chip current">current</span><span class="chip behind">behind</span><span class="chip old">old / EOL</span> ·
+<span class="chip ok">at or above minimum</span><span class="chip below">below minimum / EOL</span>
+<span class="muted">\u2191 newer major on npm</span> ·
 <a href="data.json">data.json</a></p>
 <div class="wrap"><table>
 <thead><tr><th>Repository</th><th>Latest release</th><th>Unreleased on main</th><th>Open PRs</th><th>Frameworks</th>

@@ -1,10 +1,27 @@
 # Repositories in the daily report (report/generate.py). Order here is the order on the page.
 #
-#   repo   owner/name
-#   kind   app (deployed; has images and e2e) or library (packages, workflows)
-#   npm    npm packages whose version is compared with npm's latest (default: `npm_defaults`)
+#   repo      owner/name
+#   kind      app (deployed; has images and e2e) or library (packages, workflows)
+#   minimums  per-repo overrides of the minimums below
 
-npm_defaults: [react, react-router, vite, typescript, expo, react-native]
+# Lowest accepted version per framework: below is red, at or above is green. Raise one when every
+# repo should move (e.g. typescript to 7 once we're ready for it). `node` is read from
+# package.json engines, .nvmrc/.node-version, Dockerfile `FROM node:N` and workflow node_version /
+# node-version; `python` from pyproject.toml requires-python, .python-version, Dockerfile
+# `FROM python:X.Y` and workflow python_version / python-version; `dotnet` from TargetFramework.
+# Python and .NET are also red once endoflife.date's EOL date passes. Every other
+# key is an npm package, matched in every package.json. A minimum compares as many parts as it
+# has: "19" is a major, "0.88" a 0.x minor.
+minimums:
+  node: "26"
+  python: "3.13"
+  dotnet: "10"
+  react: "19"
+  typescript: "6"
+  react-router: "8"
+  vite: "8"
+  expo: "58"
+  react-native: "0.88"
 
 repos:
   - repo: hwinther/ClutterStock
