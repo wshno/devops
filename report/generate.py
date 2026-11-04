@@ -293,6 +293,12 @@ def collect(config):
         owner = repo.split("/")[0]
         print(f"{repo} ...", file=sys.stderr)
         meta = gh(f"/repos/{repo}", owner)
+        if entry.get("report") == "prs":
+            rows.append({
+                "repo": repo, "url": meta["html_url"], "kind": entry.get("kind", "other"), "private": meta["private"],
+                "report": "prs", "prs": open_prs(repo, owner),
+            })
+            continue
         branch = meta["default_branch"]
         release, drift = release_and_drift(repo, owner, branch)
         rows.append({
@@ -300,6 +306,7 @@ def collect(config):
             "url": meta["html_url"],
             "kind": entry.get("kind", "app"),
             "private": meta["private"],
+            "report": "full",
             "defaultBranch": branch,
             "release": release,
             "unreleased": drift,
@@ -320,7 +327,8 @@ STYLE = """
 * { box-sizing:border-box }
 body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif }
 main { max-width:1400px; margin:0 auto; padding:24px 16px }
-h1 { font-size:20px; margin:0 0 4px } .sub { color:var(--muted); margin:0 0 20px }
+h1 { font-size:20px; margin:0 0 4px } h2 { font-size:16px; margin:28px 0 10px }
+table.narrow { min-width:0; width:auto } table.narrow td.num { text-align:right; min-width:90px } .sub { color:var(--muted); margin:0 0 20px }
 .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px }
 table { border-collapse:collapse; width:100%; min-width:1100px }
 th, td { text-align:left; vertical-align:top; padding:10px 12px; border-bottom:1px solid var(--line) }
@@ -437,13 +445,23 @@ def cell_vulns(q):
     return f'<span class="{cls} num">{crit} crit, {high} high</span><br><span class="muted num">{v["total"]} total, {v["fixable"]} fixable</span>'
 
 
+def repo_cell(r):
+    return f'<td><a href="{esc(r["url"])}">{esc(r["repo"])}</a><span class="kind">{esc(r["kind"])}{" · private" if r["private"] else ""}</span></td>'
+
+
 def render(data):
+    pr_rows = []
+    for r in (r for r in data["repos"] if r["report"] == "prs"):
+        p = r["prs"]
+        pr_rows.append(
+            f'<tr>{repo_cell(r)}<td class="num">{p["other"] or ""}</td>'
+            f'<td class="num">{p["dependabot"] or ""}</td><td class="num">{p["renovate"] or ""}</td></tr>'
+        )
     rows = []
-    for r in data["repos"]:
+    for r in (r for r in data["repos"] if r["report"] == "full"):
         q = r["quality"]
         rows.append(
-            "<tr>"
-            f'<td><a href="{esc(r["url"])}">{esc(r["repo"])}</a><span class="kind">{esc(r["kind"])}{" · private" if r["private"] else ""}</span></td>'
+            f"<tr>{repo_cell(r)}"
             f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td>{cell_prs(r)}</td><td>{cell_frameworks(r)}</td>"
             f"<td>{cell_tests(q)}</td><td>{cell_coverage(q)}</td><td>{cell_warnings(q)}</td><td>{cell_vulns(q)}</td>"
             "</tr>"
@@ -463,6 +481,12 @@ def render(data):
 <tbody>
 {chr(10).join(rows)}
 </tbody></table></div>
+{f'''<h2>Open pull requests</h2>
+<div class="wrap"><table class="narrow">
+<thead><tr><th>Repository</th><th>Open</th><th>Dependabot</th><th>Renovate</th></tr></thead>
+<tbody>
+{chr(10).join(pr_rows)}
+</tbody></table></div>''' if pr_rows else ""}
 </main></body></html>
 """
 

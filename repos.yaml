@@ -2,6 +2,7 @@
 #
 #   repo      owner/name
 #   kind      app (deployed; has images and e2e) or library (packages, workflows)
+#   report    full (default): release, drift, PRs, frameworks and quality; prs: open PRs only
 #   minimums  per-repo overrides of the minimums below
 
 # Lowest accepted version per framework: below is red, at or above is green. Raise one when every
@@ -40,3 +41,38 @@ repos:
     kind: library
   - repo: hwinther/reusable-workflows
     kind: library
+
+  # Open PRs only, in a table of their own.
+  - repo: hwinther/proxmox
+    kind: infra
+    report: prs
+  - repo: hwinther/private-apps
+    kind: infra
+    report: prs
+  - repo: wshno/devops
+    kind: infra
+    report: prs
+  - repo: hwinther/wsh-pve
+    kind: other
+    report: prs
+  - repo: hwinther/wsh-rtl-sdr
+    kind: other
+    report: prs
+  - repo: hwinther/kubernetes-yaml-formatter
+    kind: other
+    report: prs
+  - repo: wshno/test-consumer
+    kind: test
+    report: prs
+  - repo: wshno/test-ghcr
+    kind: test
+    report: prs
+  - repo: wshno/test-npm
+    kind: test
+    report: prs
+  - repo: wshno/test-nuget
+    kind: test
+    report: prs
+  - repo: wshno/test-pypi
+    kind: test
+    report: prs
