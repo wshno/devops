@@ -13,6 +13,10 @@
 # Python and .NET are also red once endoflife.date's EOL date passes. Every other
 # key is an npm package, matched in every package.json. A minimum compares as many parts as it
 # has: "19" is a major, "0.88" a 0.x minor.
+# Line coverage per file below this is flagged on the drill-down pages (and the per-component
+# figure on the main page turns yellow below it, red 15 points under it).
+coverage_threshold: 70
+
 minimums:
   node: "26"
   python: "3.13"

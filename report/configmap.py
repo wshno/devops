@@ -3,7 +3,7 @@
 
 Usage: configmap.py <report-dir> <out.yaml>
 
-Writes ConfigMap `devops-report` with index.html and data.json as keys. The cluster mounts it
+Writes ConfigMap `devops-report` with index.html, data.json and the repo-*.html pages as keys. The cluster mounts it
 into nginx (no subPath, so kubelet swaps in new content without a restart). Written as JSON, which
 is valid YAML and needs no quoting of the HTML. A ConfigMap holds at most 1 MiB.
 """
@@ -19,7 +19,10 @@ def main():
     if len(sys.argv) != 3:
         sys.exit(__doc__)
     report, out = Path(sys.argv[1]), Path(sys.argv[2])
-    data = {name: (report / name).read_text(encoding="utf-8") for name in ("index.html", "data.json")}
+    # index.html, data.json and one repo-<owner>-<name>.html drill-down page per repo with quality
+    # details. ConfigMap keys can't hold "/", hence the flat names.
+    names = ["index.html", "data.json"] + sorted(p.name for p in report.glob("repo-*.html"))
+    data = {name: (report / name).read_text(encoding="utf-8") for name in names}
     size = sum(len(v.encode("utf-8")) for v in data.values())
     if size > LIMIT:
         sys.exit(f"report is {size} bytes, over the ConfigMap limit")
