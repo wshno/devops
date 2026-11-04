@@ -1,0 +1,5 @@
+# python -m pip install --require-hashes -r report/requirements.txt
+# Hashes: the CPython 3.13 x86_64 manylinux wheel (the workflow's runner) and the sdist.
+pyyaml==6.0.3 \
+    --hash=sha256:0f29edc409a6392443abf94b9cf89ce99889a1dd5376d94316ae5145dfedd5d6 \
+    --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f
