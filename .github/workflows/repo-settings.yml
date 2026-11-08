@@ -1,0 +1,91 @@
+name: Repository settings sync
+
+# Applies one baseline of repository settings to the repos in settings-sync/repos-<owner>.yml, with
+# joshjohanning/bulk-github-repo-settings-sync-action and the wshno-repo-settings GitHub App
+# (Administration, Contents and Pull requests: write).
+#
+# That App can change or remove rulesets and branch protection, so its key lives only in the
+# `repo-settings` environment, which only main can deploy to (a private repo on the free plan can't
+# have required reviewers), the workflow only runs by hand, and the GitOps repos (proxmox,
+# private-apps) and reusable-workflows aren't managed or installed. Dry-run is the default: read the
+# job summary, then run again with dry_run off to apply.
+#
+# Needs, in the `repo-settings` environment: variable REPO_SETTINGS_CLIENT_ID and secret
+# REPO_SETTINGS_PRIVATE_KEY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only report what would change"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: repo-settings
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    strategy:
+      fail-fast: false
+      matrix:
+        owner: [hwinther, wshno]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: repo-settings
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Limited to the repos listed for this owner (zizmor github-app).
+      - name: Repositories for ${{ matrix.owner }}
+        id: repos
+        env:
+          OWNER: ${{ matrix.owner }}
+        run: |
+          set -euo pipefail
+          list=$(sed -nE "s|^ *- repo: ${OWNER}/([A-Za-z0-9._-]+) *$|\1|p" "settings-sync/repos-${OWNER}.yml" | paste -sd, -)
+          [ -n "$list" ] || { echo "::error::No repos for ${OWNER}"; exit 1; }
+          echo "list=${list}" >> "$GITHUB_OUTPUT"
+
+      - name: Mint wshno-repo-settings token for ${{ matrix.owner }}
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.REPO_SETTINGS_CLIENT_ID }}
+          private-key: ${{ secrets.REPO_SETTINGS_PRIVATE_KEY }}
+          owner: ${{ matrix.owner }}
+          repositories: ${{ steps.repos.outputs.list }}
+          permission-administration: write
+          permission-contents: write
+          permission-pull-requests: write
+
+      # Baseline. Settings not listed here stay as they are.
+      # - Squash only, titled from the PR: PR titles follow Conventional Commits, so main does too.
+      # - Auto-merge, delete merged branches, offer "Update branch".
+      # - Secret scanning + push protection, Dependabot alerts + security updates.
+      - name: Sync settings (${{ inputs.dry_run && 'dry run' || 'apply' }})
+        uses: joshjohanning/bulk-github-repo-settings-sync-action@40134e844f292d0dcdc88c24fde06f085d191a35 # v2.12.4
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          repositories-file: settings-sync/repos-${{ matrix.owner }}.yml
+          dry-run: ${{ inputs.dry_run }}
+          summary-heading: "Repository settings: ${{ matrix.owner }}${{ inputs.dry_run && ' (dry run)' || '' }}"
+          allow-squash-merge: true
+          squash-merge-commit-title: PR_TITLE
+          allow-merge-commit: false
+          allow-rebase-merge: false
+          allow-auto-merge: true
+          delete-branch-on-merge: true
+          allow-update-branch: true
+          secret-scanning: true
+          secret-scanning-push-protection: true
+          dependabot-alerts: true
+          dependabot-security-updates: true

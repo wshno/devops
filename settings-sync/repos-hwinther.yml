@@ -1,0 +1,15 @@
+# Repositories under hwinther whose settings repo-settings.yml manages (one installation token per
+# owner, so each owner has its own file). Defaults are the workflow inputs; per-repo overrides go here.
+#
+# Deliberately NOT managed (settings changed by hand, never by an app with Administration: write):
+#   hwinther/proxmox, hwinther/private-apps  GitOps repos: they decide what runs in the clusters
+#   hwinther/reusable-workflows              every repo runs its code with their own credentials
+repos:
+  - repo: hwinther/ClutterStock
+  - repo: hwinther/skylens
+  - repo: hwinther/pbs-browser
+  # Private (free plan): no secret scanning or rulesets, so expect warnings for those settings.
+  - repo: hwinther/ddnsadmin
+  - repo: hwinther/test
+  - repo: hwinther/wsh-rtl-sdr
+  - repo: hwinther/wsh-pve
