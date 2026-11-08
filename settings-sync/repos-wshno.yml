@@ -1,0 +1,6 @@
+# Repositories under the wshno organization managed by repo-settings.yml. wshno/devops itself is left
+# out: the app that changes settings shouldn't manage the repo that holds its own key and workflow.
+repos:
+  - repo: wshno/wshno
+  - repo: wshno/frontend-packages
+  - repo: wshno/static-server
