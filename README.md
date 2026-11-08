@@ -4,7 +4,7 @@ Cross-repository overview for the wshno and hwinther repos.
 
 ## Repository report
 
-A daily page with one row per repository in [repos.yaml](repos.yaml):
+A page, refreshed every 6 hours, with one row per repository in [repos.yaml](repos.yaml):
 
 | Column | Source |
 |---|---|
@@ -15,7 +15,7 @@ A daily page with one row per repository in [repos.yaml](repos.yaml):
 | Tests, coverage, warnings, vulnerabilities | `summary.json` from the repo's newest `quality-summary` workflow artifact on the default branch (see [hwinther/reusable-workflows docs/quality-artifact.md](https://github.com/hwinther/reusable-workflows/blob/main/docs/quality-artifact.md)) |
 
 [report/generate.py](report/generate.py) builds `index.html` and `data.json`.
-[.github/workflows/report.yml](.github/workflows/report.yml) runs it every morning and on changes
+[.github/workflows/report.yml](.github/workflows/report.yml) runs it every 6 hours (04:30, 10:30, 16:30, 22:30 UTC) and on changes
 here. The result goes out as a ConfigMap in the signed OCI artifact
 `ghcr.io/wshno/devops/report:latest`. The homelab cluster reconciles it with Flux and serves it
 behind Authelia (hwinther/proxmox, `clusters/production/apps/devops-report`).
