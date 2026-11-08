@@ -1,6 +1,6 @@
 # Synced from wshno/devops settings-sync/files/workflows/stale.yml: change it there.
 # Warns and then closes issues/PRs with no activity. https://github.com/actions/stale
-name: Mark stale issues and pull requests
+name: Stale
 
 on:
   schedule:
