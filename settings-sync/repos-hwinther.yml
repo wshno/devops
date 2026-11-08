@@ -43,8 +43,12 @@ repos:
       - *stale
       - *label
       - *release
-  # Private (free plan): no secret scanning or rulesets, so expect warnings for those settings.
+  # Private on the free plan: auto-merge, secret scanning and push protection aren't available
+  # (the API answers 422), so they stay off here instead of failing every run.
   - repo: hwinther/ddnsadmin
+    allow-auto-merge: false
+    secret-scanning: false
+    secret-scanning-push-protection: false
     file-sync:
       - *stale
       - *label
