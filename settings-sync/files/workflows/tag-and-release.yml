@@ -1,5 +1,5 @@
 # Synced from wshno/devops settings-sync/files/workflows/tag-and-release.yml: change it there.
-name: "Create release"
+name: 'Create release'
 
 # Creates the v* tag (auto = next version from GitVersion) and, optionally, the GitHub Release.
 # The tag is pushed with the wshno-devops-bot GitHub App's token, so the push itself starts
@@ -18,12 +18,12 @@ on:
       tag_name:
         description: "Version tag (e.g. v1.2.3), or 'auto' for the next version"
         required: false
-        default: "auto"
+        default: 'auto'
       release_notes:
-        description: "Release notes"
+        description: 'Release notes'
         required: false
       create_release:
-        description: "Also create a GitHub Release"
+        description: 'Also create a GitHub Release'
         type: boolean
         default: true
 
