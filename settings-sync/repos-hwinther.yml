@@ -13,3 +13,4 @@ repos:
   - repo: hwinther/test
   - repo: hwinther/wsh-rtl-sdr
   - repo: hwinther/wsh-pve
+  - repo: hwinther/lanot
