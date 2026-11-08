@@ -2,7 +2,7 @@ name: Repository settings sync
 
 # Applies one baseline of repository settings to the repos in settings-sync/repos-<owner>.yml, with
 # joshjohanning/bulk-github-repo-settings-sync-action and the wshno-repo-settings GitHub App
-# (Administration, Contents and Pull requests: write).
+# (Administration, Contents, Pull requests and Workflows: write).
 #
 # That App can change or remove rulesets and branch protection, so its key lives only in the
 # `repo-settings` environment, which only main can deploy to (a private repo on the free plan can't
@@ -66,6 +66,8 @@ jobs:
           permission-administration: write
           permission-contents: write
           permission-pull-requests: write
+          # file-sync writes .github/workflows/*; without this the tree API answers 403.
+          permission-workflows: write
 
       # Baseline. Settings not listed here stay as they are.
       # - Squash (titled from the PR: PR titles follow Conventional Commits, so main does too) and
