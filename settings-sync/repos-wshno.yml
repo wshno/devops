@@ -1,6 +1,39 @@
-# Repositories under the wshno organization managed by repo-settings.yml. wshno/devops itself is left
-# out: the app that changes settings shouldn't manage the repo that holds its own key and workflow.
+# Managed by .github/workflows/repo-settings.yml (one installation token per owner, so one file per
+# owner). Settings defaults are the workflow inputs; per-repo overrides and the files each repo gets
+# go here. file-sync opens ONE pull request per repo ("chore: sync repository standards") with the
+# files from settings-sync/files/ (paths relative to base-path).
+#
+# Files: zizmor + poutine workflows and their configs and the targeted CODEOWNERS go to every public
+# repo; stale/labeler only where they exist today (labeler needs the repo's own .github/labeler.yml);
+# the generic "Create release" tag-and-release.yml where the tag push triggers the container
+# workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
+# ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
+#
+# wshno/devops itself is left out: the app that changes settings shouldn't manage the repo that holds
+# its own key and workflow.
+base-path: './settings-sync/files/'
 repos:
   - repo: wshno/wshno
+    file-sync:
+      - &zizmor {name: zizmor workflow, source: workflows/zizmor.yml, target: .github/workflows/zizmor.yml, group: repository standards}
+      - &zizmorcfg {name: zizmor config, source: zizmor-config.yml, target: .github/zizmor.yml, group: repository standards}
+      - &poutine {name: poutine workflow, source: workflows/poutine.yml, target: .github/workflows/poutine.yml, group: repository standards}
+      - &poutinecfg {name: poutine config, source: poutine-config.yml, target: .poutine.yml, group: repository standards}
+      - &codeowners {name: CODEOWNERS, source: CODEOWNERS, target: .github/CODEOWNERS, group: repository standards}
+      - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
   - repo: wshno/frontend-packages
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+  # Needs DEVOPS_BOT_CLIENT_ID (set) + secret DEVOPS_BOT_PRIVATE_KEY before the synced Create release can push the tag.
   - repo: wshno/static-server
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+      - *release
