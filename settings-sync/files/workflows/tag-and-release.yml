@@ -1,0 +1,43 @@
+# Synced from wshno/devops settings-sync/files/workflows/tag-and-release.yml: change it there.
+name: "Create release"
+
+# Creates the v* tag (auto = next version from GitVersion) and, optionally, the GitHub Release.
+# The tag is pushed with the wshno-devops-bot GitHub App's token, so the push itself starts
+# the repo's tag-triggered build (its container/manifests workflow, `on: push: tags: v*`).
+# (A tag pushed with GITHUB_TOKEN wouldn't trigger them, which is why this used to dispatch them.)
+#
+# Grype gate in the way (vulnerabilities we can't fix yet)? Let the build fail, then run that
+# workflow by hand at the tag ("Use workflow from" -> the tag) with "Fail the build" off.
+#
+# Needs: repository variable DEVOPS_BOT_CLIENT_ID, secret DEVOPS_BOT_PRIVATE_KEY, and the App
+# installed on this repo with Contents: write.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Version tag (e.g. v1.2.3), or 'auto' for the next version"
+        required: false
+        default: "auto"
+      release_notes:
+        description: "Release notes"
+        required: false
+      create_release:
+        description: "Also create a GitHub Release"
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  tag:
+    permissions:
+      contents: write
+    uses: hwinther/reusable-workflows/.github/workflows/tag-and-release.yml@9a681fd609e4169b4293a0c4409acce9f809cb77 # v2.26.1
+    with:
+      tag_name: ${{ inputs.tag_name }}
+      release_notes: ${{ inputs.release_notes }}
+      create_release: ${{ inputs.create_release }}
+      app_client_id: ${{ vars.DEVOPS_BOT_CLIENT_ID }}
+    secrets:
+      app_private_key: ${{ secrets.DEVOPS_BOT_PRIVATE_KEY }}

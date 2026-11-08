@@ -1,0 +1,25 @@
+# Synced from wshno/devops settings-sync/files/workflows/stale.yml: change it there.
+# Warns and then closes issues/PRs with no activity. https://github.com/actions/stale
+name: Mark stale issues and pull requests
+
+on:
+  schedule:
+    - cron: "42 6 * * *"
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/stale@eb5cf3af3ac0a1aa4c9c45633dd1ae542a27a899 # v10.3.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: "No activity for 30 days — marking stale. Comment to keep it open."
+          stale-pr-message: "No activity for 30 days — marking stale. Comment to keep it open."
+          stale-issue-label: "no-issue-activity"
+          stale-pr-label: "no-pr-activity"
+          days-before-stale: 30
+          days-before-close: 14

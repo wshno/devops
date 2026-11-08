@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Keeps the action pins current in this repo's own workflows AND in the synced templates under settings-sync/files/workflows/. The target repos' Dependabot bumps the same pins after a sync; keeping the templates current here stops the next sync from reverting them.",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "enabledManagers": ["github-actions"],
+  "github-actions": {
+    "managerFilePatterns": [
+      "/(^|/)\\.github/workflows/[^/]+\\.ya?ml$/",
+      "/^settings-sync/files/workflows/[^/]+\\.ya?ml$/"
+    ]
+  },
+  "schedule": ["* * * * 1"],
+  "minimumReleaseAge": "7 days",
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "commitMessagePrefix": "chore(deps):",
+  "packageRules": [
+    {
+      "description": "One PR per week for all action bumps.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    }
+  ]
+}

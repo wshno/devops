@@ -1,16 +1,82 @@
-# Repositories under hwinther whose settings repo-settings.yml manages (one installation token per
-# owner, so each owner has its own file). Defaults are the workflow inputs; per-repo overrides go here.
+# Managed by .github/workflows/repo-settings.yml (one installation token per owner, so one file per
+# owner). Settings defaults are the workflow inputs; per-repo overrides and the files each repo gets
+# go here. file-sync opens ONE pull request per repo ("chore: sync repository standards") with the
+# files from settings-sync/files/ (paths relative to base-path).
+#
+# Files: zizmor + poutine workflows and their configs and the targeted CODEOWNERS go to every public
+# repo; stale/labeler only where they exist today (labeler needs the repo's own .github/labeler.yml);
+# the generic "Create release" tag-and-release.yml where the tag push triggers the container
+# workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
+# ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
 #
 # Deliberately NOT managed (settings changed by hand, never by an app with Administration: write):
 #   hwinther/proxmox, hwinther/private-apps  GitOps repos: they decide what runs in the clusters
 #   hwinther/reusable-workflows              every repo runs its code with their own credentials
+base-path: './settings-sync/files/'
 repos:
   - repo: hwinther/ClutterStock
+    file-sync:
+      - &zizmor {name: zizmor workflow, source: workflows/zizmor.yml, target: .github/workflows/zizmor.yml, group: repository standards}
+      - &zizmorcfg {name: zizmor config, source: zizmor-config.yml, target: .github/zizmor.yml, group: repository standards}
+      - &poutine {name: poutine workflow, source: workflows/poutine.yml, target: .github/workflows/poutine.yml, group: repository standards}
+      - &poutinecfg {name: poutine config, source: poutine-config.yml, target: .poutine.yml, group: repository standards}
+      - &codeowners {name: CODEOWNERS, source: CODEOWNERS, target: .github/CODEOWNERS, group: repository standards}
+      - &stale {name: stale workflow, source: workflows/stale.yml, target: .github/workflows/stale.yml, group: repository standards}
+      - &label {name: labeler workflow, source: workflows/label.yml, target: .github/workflows/label.yml, group: repository standards}
+      - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
   - repo: hwinther/skylens
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+      - *stale
+      - *label
   - repo: hwinther/pbs-browser
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+      - *stale
+      - *label
+      - *release
   # Private (free plan): no secret scanning or rulesets, so expect warnings for those settings.
   - repo: hwinther/ddnsadmin
+    file-sync:
+      - *stale
+      - *label
+      - *release
   - repo: hwinther/test
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+      - *stale
+      - *label
+      - *release
   - repo: hwinther/wsh-rtl-sdr
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
   - repo: hwinther/wsh-pve
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
   - repo: hwinther/lanot
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
