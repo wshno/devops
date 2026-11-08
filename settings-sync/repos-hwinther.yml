@@ -8,6 +8,8 @@
 # the generic "Create release" tag-and-release.yml where the tag push triggers the container
 # workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
 # ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
+# dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
+# needs DEVOPS_BOT_CLIENT_ID + secret DEVOPS_BOT_PRIVATE_KEY there.
 #
 # Deliberately NOT managed (settings changed by hand, never by an app with Administration: write):
 #   hwinther/proxmox, hwinther/private-apps  GitOps repos: they decide what runs in the clusters
@@ -24,6 +26,7 @@ repos:
       - &stale {name: stale workflow, source: workflows/stale.yml, target: .github/workflows/stale.yml, group: repository standards}
       - &label {name: labeler workflow, source: workflows/label.yml, target: .github/workflows/label.yml, group: repository standards}
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
+      - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
   - repo: hwinther/skylens
     file-sync:
       - *zizmor
@@ -33,6 +36,7 @@ repos:
       - *codeowners
       - *stale
       - *label
+      - *automerge
   - repo: hwinther/pbs-browser
     file-sync:
       - *zizmor
@@ -43,6 +47,7 @@ repos:
       - *stale
       - *label
       - *release
+      - *automerge
   # Private on the free plan: auto-merge, secret scanning and push protection aren't available
   # (the API answers 422), so they stay off here instead of failing every run.
   - repo: hwinther/ddnsadmin
@@ -53,6 +58,7 @@ repos:
       - *stale
       - *label
       - *release
+      - *automerge
   - repo: hwinther/test
     file-sync:
       - *zizmor
@@ -63,6 +69,7 @@ repos:
       - *stale
       - *label
       - *release
+      - *automerge
   - repo: hwinther/wsh-rtl-sdr
     file-sync:
       - *zizmor
@@ -77,6 +84,7 @@ repos:
       - *poutine
       - *poutinecfg
       - *codeowners
+      - *automerge
   - repo: hwinther/lanot
     file-sync:
       - *zizmor

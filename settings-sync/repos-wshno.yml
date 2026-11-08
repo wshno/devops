@@ -8,6 +8,8 @@
 # the generic "Create release" tag-and-release.yml where the tag push triggers the container
 # workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
 # ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
+# dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
+# needs DEVOPS_BOT_CLIENT_ID + secret DEVOPS_BOT_PRIVATE_KEY there.
 #
 # wshno/devops itself is left out: the app that changes settings shouldn't manage the repo that holds
 # its own key and workflow.
@@ -21,6 +23,7 @@ repos:
       - &poutinecfg {name: poutine config, source: poutine-config.yml, target: .poutine.yml, group: repository standards}
       - &codeowners {name: CODEOWNERS, source: CODEOWNERS, target: .github/CODEOWNERS, group: repository standards}
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
+      - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
   - repo: wshno/frontend-packages
     file-sync:
       - *zizmor
@@ -28,6 +31,7 @@ repos:
       - *poutine
       - *poutinecfg
       - *codeowners
+      - *automerge
   # Needs DEVOPS_BOT_CLIENT_ID (set) + secret DEVOPS_BOT_PRIVATE_KEY before the synced Create release can push the tag.
   - repo: wshno/static-server
     file-sync:
@@ -37,3 +41,4 @@ repos:
       - *poutinecfg
       - *codeowners
       - *release
+      - *automerge
