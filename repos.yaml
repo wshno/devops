@@ -45,6 +45,8 @@ repos:
     kind: app
   - repo: wshno/frontend-packages
     kind: library
+  - repo: wshno/static-server
+    kind: library
   - repo: hwinther/reusable-workflows
     kind: library
 
