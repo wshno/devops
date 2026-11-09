@@ -41,6 +41,8 @@ repos:
     kind: app
   - repo: wshno/wshno
     kind: app
+  - repo: wshno/romslig
+    kind: app
   - repo: wshno/frontend-packages
     kind: library
   - repo: hwinther/reusable-workflows
