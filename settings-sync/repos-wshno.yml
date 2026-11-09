@@ -9,7 +9,7 @@
 # workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
 # ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
 # dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
-# needs DEVOPS_BOT_CLIENT_ID + secret DEVOPS_BOT_PRIVATE_KEY there.
+# needs DEVOPS_BOT_CLIENT_ID + APP_PRIVATE_KEY in the devops-bot environment there.
 #
 # Rulesets/environments (applied directly, not via PR):
 #   rulesets/main-baseline.json   floor for the default branch: PR required (squash/rebase), code-owner
@@ -45,7 +45,6 @@ repos:
       - *poutinecfg
       - *codeowners
       - *automerge
-  # Needs DEVOPS_BOT_CLIENT_ID (set) + secret DEVOPS_BOT_PRIVATE_KEY before the synced Create release can push the tag.
   - repo: wshno/static-server
     environments-file: *envbot
     rulesets-file: *rsbase
