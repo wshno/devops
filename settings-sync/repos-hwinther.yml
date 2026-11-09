@@ -11,12 +11,23 @@
 # dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
 # needs DEVOPS_BOT_CLIENT_ID + secret DEVOPS_BOT_PRIVATE_KEY there.
 #
+# Rulesets/environments (applied directly, not via PR):
+#   rulesets/main-baseline.json   floor for the default branch: PR required (squash/rebase), code-owner
+#                                 review (only bites on the CODEOWNERS paths), linear history, no
+#                                 force-push/deletion; admins bypass. Added NEXT TO each repo's own
+#                                 ruleset (status checks, code scanning stay there); the strictest rule
+#                                 wins. Not on wsh-pve: its patch/changelog workflows push to main.
+#   environments/devops-bot.yml   main-only environment for the DEVOPS_BOT_PRIVATE_KEY secret.
+#   ddnsadmin gets neither: private on the free plan, no rulesets or environments.
+#
 # Deliberately NOT managed (settings changed by hand, never by an app with Administration: write):
 #   hwinther/proxmox, hwinther/private-apps  GitOps repos: they decide what runs in the clusters
 #   hwinther/reusable-workflows              every repo runs its code with their own credentials
 base-path: './settings-sync/files/'
 repos:
   - repo: hwinther/ClutterStock
+    environments-file: &envbot environments/devops-bot.yml
+    rulesets-file: &rsbase rulesets/main-baseline.json
     file-sync:
       - &zizmor {name: zizmor workflow, source: workflows/zizmor.yml, target: .github/workflows/zizmor.yml, group: repository standards}
       - &zizmorcfg {name: zizmor config, source: zizmor-config.yml, target: .github/zizmor.yml, group: repository standards}
@@ -28,6 +39,8 @@ repos:
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
       - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
   - repo: hwinther/skylens
+    environments-file: *envbot
+    rulesets-file: *rsbase
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -38,6 +51,8 @@ repos:
       - *label
       - *automerge
   - repo: hwinther/pbs-browser
+    environments-file: *envbot
+    rulesets-file: *rsbase
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -60,6 +75,8 @@ repos:
       - *release
       - *automerge
   - repo: hwinther/test
+    environments-file: *envbot
+    rulesets-file: *rsbase
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -71,6 +88,8 @@ repos:
       - *release
       - *automerge
   - repo: hwinther/wsh-rtl-sdr
+    environments-file: *envbot
+    rulesets-file: *rsbase
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -78,6 +97,7 @@ repos:
       - *poutinecfg
       - *codeowners
   - repo: hwinther/wsh-pve
+    environments-file: *envbot
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -86,6 +106,8 @@ repos:
       - *codeowners
       - *automerge
   - repo: hwinther/lanot
+    environments-file: *envbot
+    rulesets-file: *rsbase
     file-sync:
       - *zizmor
       - *zizmorcfg
