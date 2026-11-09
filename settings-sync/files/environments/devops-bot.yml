@@ -1,0 +1,14 @@
+# Synced from wshno/devops settings-sync/files/environments/devops-bot.yml: change it there.
+#
+# Holds DEVOPS_BOT_PRIVATE_KEY (the wshno-devops-bot App key, set by hand per repo). Only main can
+# deploy to it, so only workflows that went through review onto main (CODEOWNERS covers
+# .github/workflows/) can mint a token: a workflow pushed to another branch, run from a tag or run
+# for a pull request is refused before it gets the secret. Never add a wildcard pattern here; anyone
+# with write access can create a branch that matches one.
+environments:
+  - name: devops-bot
+    deployment_branch_policy:
+      protected_branches: false
+      custom_branch_policies: true
+    branch_name_patterns:
+      - main
