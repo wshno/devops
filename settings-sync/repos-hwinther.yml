@@ -69,11 +69,12 @@ repos:
     allow-auto-merge: false
     secret-scanning: false
     secret-scanning-push-protection: false
+    # No environments on a private free-plan repo, so the devops-bot key stays a repository secret
+    # (DEVOPS_BOT_PRIVATE_KEY) here and the synced Create release / Dependabot auto-merge (which read
+    # it from the devops-bot environment) aren't synced: its own copies stay as they are.
     file-sync:
       - *stale
       - *label
-      - *release
-      - *automerge
   - repo: hwinther/test
     environments-file: *envbot
     rulesets-file: *rsbase
