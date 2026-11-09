@@ -8,6 +8,8 @@
 # the generic "Create release" tag-and-release.yml where the tag push triggers the container
 # workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
 # ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
+# manifest-diff.yml goes to the repos with deploy/ (Kubernetes app repos); it reads their own
+# .github/manifest-renders.txt.
 # dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
 # needs DEVOPS_BOT_CLIENT_ID + APP_PRIVATE_KEY in the devops-bot environment there.
 #
@@ -38,6 +40,7 @@ repos:
       - &label {name: labeler workflow, source: workflows/label.yml, target: .github/workflows/label.yml, group: repository standards}
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
       - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
+      - &mdiff {name: Manifest diff workflow, source: workflows/manifest-diff.yml, target: .github/workflows/manifest-diff.yml, group: repository standards}
   - repo: hwinther/skylens
     environments-file: *envbot
     rulesets-file: *rsbase
@@ -50,6 +53,7 @@ repos:
       - *stale
       - *label
       - *automerge
+      - *mdiff
   - repo: hwinther/pbs-browser
     environments-file: *envbot
     rulesets-file: *rsbase
@@ -63,6 +67,7 @@ repos:
       - *label
       - *release
       - *automerge
+      - *mdiff
   # Private on the free plan: auto-merge, secret scanning and push protection aren't available
   # (the API answers 422), so they stay off here instead of failing every run.
   - repo: hwinther/ddnsadmin
@@ -75,6 +80,7 @@ repos:
     file-sync:
       - *stale
       - *label
+      - *mdiff
   - repo: hwinther/test
     environments-file: *envbot
     rulesets-file: *rsbase
@@ -88,6 +94,7 @@ repos:
       - *label
       - *release
       - *automerge
+      - *mdiff
   - repo: hwinther/wsh-rtl-sdr
     environments-file: *envbot
     rulesets-file: *rsbase
@@ -97,6 +104,7 @@ repos:
       - *poutine
       - *poutinecfg
       - *codeowners
+      - *mdiff
   - repo: hwinther/wsh-pve
     environments-file: *envbot
     file-sync:

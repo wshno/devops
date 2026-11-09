@@ -8,6 +8,8 @@
 # the generic "Create release" tag-and-release.yml where the tag push triggers the container
 # workflow (skylens keeps its own for the optional Android build, wsh-rtl-sdr for "Publish release").
 # ddnsadmin is private (free plan): no code scanning upload or code owners, so no scanners/CODEOWNERS.
+# manifest-diff.yml goes to the repos with deploy/ (Kubernetes app repos); it reads their own
+# .github/manifest-renders.txt.
 # dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
 # needs DEVOPS_BOT_CLIENT_ID + APP_PRIVATE_KEY in the devops-bot environment there.
 #
@@ -35,6 +37,7 @@ repos:
       - &codeowners {name: CODEOWNERS, source: CODEOWNERS, target: .github/CODEOWNERS, group: repository standards}
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
       - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
+      - &mdiff {name: Manifest diff workflow, source: workflows/manifest-diff.yml, target: .github/workflows/manifest-diff.yml, group: repository standards}
   - repo: wshno/frontend-packages
     environments-file: *envbot
     rulesets-file: *rsbase
