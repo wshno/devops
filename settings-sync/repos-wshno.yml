@@ -19,7 +19,7 @@
 #                                 force-push/deletion; admins bypass. Added NEXT TO each repo's own
 #                                 ruleset (status checks, code scanning stay there); the strictest rule
 #                                 wins. Not on wsh-pve: its patch/changelog workflows push to main.
-#   environments/devops-bot.yml   main-only environment for the DEVOPS_BOT_PRIVATE_KEY secret.
+#   environments/devops-bot.yml   main-only environment for the APP_PRIVATE_KEY secret.
 #   ddnsadmin gets neither: private on the free plan, no rulesets or environments.
 #
 # wshno/devops itself is left out: the app that changes settings shouldn't manage the repo that holds
@@ -38,6 +38,18 @@ repos:
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
       - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
       - &mdiff {name: Manifest diff workflow, source: workflows/manifest-diff.yml, target: .github/workflows/manifest-diff.yml, group: repository standards}
+  - repo: wshno/romslig
+    environments-file: *envbot
+    rulesets-file: *rsbase
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+      - *release
+      - *automerge
+      - *mdiff
   - repo: wshno/frontend-packages
     environments-file: *envbot
     rulesets-file: *rsbase
