@@ -13,6 +13,9 @@
 # dependabot-auto-merge.yml goes to every repo with a CI build on PRs (not lanot or wsh-rtl-sdr); it
 # needs DEVOPS_BOT_CLIENT_ID + APP_PRIVATE_KEY in the devops-bot environment there.
 #
+# dependabot-yml: the stack template from settings-sync/files/dependabot/ (built by
+# settings-sync/dependabot/build.py), synced as .github/dependabot.yml in a PR of its own.
+#
 # Rulesets/environments (applied directly, not via PR):
 #   rulesets/main-baseline.json   floor for the default branch: PR required (squash/rebase), code-owner
 #                                 review (only bites on the CODEOWNERS paths), linear history, no
@@ -28,6 +31,7 @@
 base-path: './settings-sync/files/'
 repos:
   - repo: hwinther/ClutterStock
+    dependabot-yml: dependabot/dotnet-node.yml
     environments-file: &envbot environments/devops-bot.yml
     rulesets-file: &rsbase rulesets/main-baseline.json
     file-sync:
@@ -42,6 +46,7 @@ repos:
       - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
       - &mdiff {name: Manifest diff workflow, source: workflows/manifest-diff.yml, target: .github/workflows/manifest-diff.yml, group: repository standards}
   - repo: hwinther/skylens
+    dependabot-yml: dependabot/skylens.yml
     environments-file: *envbot
     rulesets-file: *rsbase
     file-sync:
@@ -55,6 +60,7 @@ repos:
       - *automerge
       - *mdiff
   - repo: hwinther/pbs-browser
+    dependabot-yml: dependabot/dotnet-node.yml
     environments-file: *envbot
     rulesets-file: *rsbase
     file-sync:
@@ -71,6 +77,7 @@ repos:
   # Private on the free plan: auto-merge, secret scanning and push protection aren't available
   # (the API answers 422), so they stay off here instead of failing every run.
   - repo: hwinther/ddnsadmin
+    dependabot-yml: dependabot/python-node.yml
     allow-auto-merge: false
     secret-scanning: false
     secret-scanning-push-protection: false
@@ -82,6 +89,7 @@ repos:
       - *label
       - *mdiff
   - repo: hwinther/test
+    dependabot-yml: dependabot/dotnet-node.yml
     environments-file: *envbot
     rulesets-file: *rsbase
     file-sync:
@@ -96,6 +104,7 @@ repos:
       - *automerge
       - *mdiff
   - repo: hwinther/wsh-rtl-sdr
+    dependabot-yml: dependabot/wsh-rtl-sdr.yml
     environments-file: *envbot
     rulesets-file: *rsbase
     file-sync:
@@ -106,6 +115,7 @@ repos:
       - *codeowners
       - *mdiff
   - repo: hwinther/wsh-pve
+    dependabot-yml: dependabot/node.yml
     environments-file: *envbot
     file-sync:
       - *zizmor
