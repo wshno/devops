@@ -92,3 +92,16 @@ jobs:
           secret-scanning-push-protection: true
           dependabot-alerts: true
           dependabot-security-updates: true
+
+      # The bulk action can't manage labels: settings-sync/labels.yml, created or updated (never
+      # deleted) in the same repos with the same token (Pull requests: write covers labels).
+      - name: Sync labels (${{ inputs.dry_run && 'dry run' || 'apply' }})
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          OWNER: ${{ matrix.owner }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=("$OWNER")
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python3 -I settings-sync/sync-labels.py "${args[@]}"
