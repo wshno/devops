@@ -1,0 +1,23 @@
+name: Format
+
+# Prettier with .prettierrc.json (the same settings as @wshno/prettier-config). The synced files land
+# in repos that run `prettier --check` over .github/ too, so they have to be formatted here already.
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  prettier:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prettier
+        run: npx --yes prettier@3.9.10 --check .

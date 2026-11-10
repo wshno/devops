@@ -18,11 +18,11 @@ name: Repository settings sync
 
 on:
   schedule:
-    - cron: "17 5 * * *"
+    - cron: '17 5 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Only report what would change"
+        description: 'Only report what would change'
         type: boolean
         default: true
 

@@ -18,15 +18,15 @@
 coverage_threshold: 70
 
 minimums:
-  node: "26"
-  python: "3.13"
-  dotnet: "10"
-  react: "19"
-  typescript: "6"
-  react-router: "8"
-  vite: "8"
-  expo: "58"
-  react-native: "0.88"
+  node: '26'
+  python: '3.13'
+  dotnet: '10'
+  react: '19'
+  typescript: '6'
+  react-router: '8'
+  vite: '8'
+  expo: '58'
+  react-native: '0.88'
 
 repos:
   - repo: hwinther/ClutterStock
