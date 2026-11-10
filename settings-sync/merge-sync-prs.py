@@ -43,7 +43,14 @@ def call(method, path, body=None):
 def state(repo, sha):
     """'green', 'pending' or 'failed: <names>' for every check run and status on sha."""
     runs = call("GET", f"/repos/{repo}/commits/{sha}/check-runs?per_page=100")["check_runs"]
-    statuses = call("GET", f"/repos/{repo}/commits/{sha}/status")["statuses"]
+    try:
+        statuses = call("GET", f"/repos/{repo}/commits/{sha}/status")["statuses"]
+    except urllib.error.HTTPError as e:
+        # The App has no Commit statuses permission; public repos answer anyway, private ones 403.
+        # Our workflows report check runs, not statuses, so a private repo just has none to read.
+        if e.code != 403:
+            raise
+        statuses = []
     if not runs and not statuses:
         return "pending"  # nothing reported yet (or nothing ran): never merge on zero checks
     if any(r["status"] != "completed" for r in runs) or any(s["state"] == "pending" for s in statuses):
