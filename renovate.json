@@ -9,7 +9,7 @@
       "/^settings-sync/files/workflows/[^/]+\\.ya?ml$/"
     ]
   },
-  "schedule": ["* * * * 1"],
+  "schedule": ["* * * * 5"],
   "minimumReleaseAge": "7 days",
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
