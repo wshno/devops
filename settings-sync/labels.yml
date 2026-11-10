@@ -1,0 +1,25 @@
+# Labels every repo in settings-sync/repos-<owner>.yml gets (created, or recoloured/redescribed to
+# match). Labels not listed here are left alone; nothing is deleted. Applied by
+# settings-sync/sync-labels.py in the Repository settings sync workflow.
+#
+# Type labels: set from the PR title (Conventional Commits) by the synced "Type label" workflow;
+# .github/release.yml groups the release notes by them. bug, documentation and dependencies keep
+# GitHub's/Dependabot's default colour and description (issues and Dependabot use them too).
+labels:
+  - {name: breaking, color: b60205, description: "Breaking change (feat!:, fix!:, BREAKING CHANGE)"}
+  - {name: feature, color: 0e8a16, description: "New feature (feat:)"}
+  - {name: bug, color: d73a4a, description: "Something isn't working"}
+  - {name: performance, color: fbca04, description: "Performance improvement (perf:)"}
+  - {name: refactor, color: c5def5, description: "Refactoring without behaviour change (refactor:)"}
+  - {name: documentation, color: 0075ca, description: "Improvements or additions to documentation"}
+  - {name: test, color: bfd4f2, description: "Tests (test:)"}
+  - {name: build, color: 5319e7, description: "Build system or dependencies tooling (build:)"}
+  - {name: ci, color: 1d76db, description: "CI workflows (ci:)"}
+  - {name: chore, color: cfd3d7, description: "Maintenance (chore:, style:, revert:)"}
+  - {name: dependencies, color: 0366d6, description: "Pull requests that update a dependency file"}
+  - {name: skip-changelog, color: ffffff, description: "Left out of the release notes"}
+  # Operations.
+  - {name: deploy-feature, color: 8ad7df, description: "Deploy a preview environment for this PR"}
+  - {name: update-dotnet-lockfiles, color: 795d53, description: "Regenerate packages.lock.json on this Dependabot PR"}
+  - {name: automerge, color: 0e8a16, description: "Merged automatically once every check is green"}
+  - {name: skip-grype, color: f3168d, description: "Skip the Grype gate for this PR's image"}

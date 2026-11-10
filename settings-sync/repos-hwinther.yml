@@ -16,6 +16,9 @@
 # dependabot-yml: the stack template from settings-sync/files/dependabot/ (built by
 # settings-sync/dependabot/build.py), synced as .github/dependabot.yml in a PR of its own.
 #
+# type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
+# Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
+#
 # Rulesets/environments (applied directly, not via PR):
 #   rulesets/main-baseline.json   floor for the default branch: PR required (squash/rebase), code-owner
 #                                 review (only bites on the CODEOWNERS paths), linear history, no
@@ -45,6 +48,8 @@ repos:
       - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
       - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
       - &mdiff {name: Manifest diff workflow, source: workflows/manifest-diff.yml, target: .github/workflows/manifest-diff.yml, group: repository standards}
+      - &typelabel {name: Type label workflow, source: workflows/type-label.yml, target: .github/workflows/type-label.yml, group: repository standards}
+      - &releasecfg {name: Release notes config, source: release.yml, target: .github/release.yml, group: repository standards}
   - repo: hwinther/skylens
     dependabot-yml: dependabot/skylens.yml
     environments-file: *envbot
@@ -59,6 +64,8 @@ repos:
       - *label
       - *automerge
       - *mdiff
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/pbs-browser
     dependabot-yml: dependabot/dotnet-node.yml
     environments-file: *envbot
@@ -76,6 +83,8 @@ repos:
       - *mdiff
   # Private on the free plan: auto-merge, secret scanning and push protection aren't available
   # (the API answers 422), so they stay off here instead of failing every run.
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/ddnsadmin
     dependabot-yml: dependabot/python-node.yml
     allow-auto-merge: false
@@ -88,6 +97,8 @@ repos:
       - *stale
       - *label
       - *mdiff
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/test
     dependabot-yml: dependabot/dotnet-node.yml
     environments-file: *envbot
@@ -103,6 +114,8 @@ repos:
       - *release
       - *automerge
       - *mdiff
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/wsh-rtl-sdr
     dependabot-yml: dependabot/wsh-rtl-sdr.yml
     environments-file: *envbot
@@ -114,6 +127,8 @@ repos:
       - *poutinecfg
       - *codeowners
       - *mdiff
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/wsh-pve
     dependabot-yml: dependabot/node.yml
     environments-file: *envbot
@@ -124,6 +139,8 @@ repos:
       - *poutinecfg
       - *codeowners
       - *automerge
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/lanot
     environments-file: *envbot
     rulesets-file: *rsbase
@@ -133,3 +150,5 @@ repos:
       - *poutine
       - *poutinecfg
       - *codeowners
+      - *typelabel
+      - *releasecfg
