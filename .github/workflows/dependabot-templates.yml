@@ -1,0 +1,28 @@
+name: Dependabot templates
+
+# The synced Dependabot configs (settings-sync/files/dependabot/*.yml) are built from the blocks in
+# settings-sync/dependabot/build.py. Fails when a committed file differs from what the script writes,
+# i.e. someone edited a built file by hand or changed the blocks without rebuilding.
+
+on:
+  pull_request:
+    paths:
+      - "settings-sync/dependabot/**"
+      - "settings-sync/files/dependabot/**"
+      - ".github/workflows/dependabot-templates.yml"
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Built files match the blocks
+        run: python3 -I settings-sync/dependabot/build.py --check
