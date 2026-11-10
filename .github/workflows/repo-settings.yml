@@ -78,7 +78,8 @@ jobs:
       # - Squash (titled from the PR: PR titles follow Conventional Commits, so main does too) and
       #   rebase; no merge commits.
       # - Auto-merge, delete merged branches, offer "Update branch".
-      # - Secret scanning + push protection, Dependabot alerts + security updates.
+      # - Secret scanning + push protection, Dependabot alerts + security updates; CodeQL default
+      #   setup off.
       - name: Sync settings (${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'dry run' || 'apply' }})
         uses: joshjohanning/bulk-github-repo-settings-sync-action@40134e844f292d0dcdc88c24fde06f085d191a35 # v2.12.4
         with:
@@ -93,6 +94,8 @@ jobs:
           allow-auto-merge: true
           delete-branch-on-merge: true
           allow-update-branch: true
+          # No CodeQL default setup: the scanners are zizmor/poutine/Grype uploading SARIF.
+          code-scanning: false
           secret-scanning: true
           secret-scanning-push-protection: true
           dependabot-alerts: true
