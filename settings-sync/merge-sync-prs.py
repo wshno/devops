@@ -92,7 +92,7 @@ def main():
 
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         lines = [f"### Sync PRs: {owner}", "", "| PR | result |", "|---|---|"]
-        lines += [f"| {r}#{n} | {res} |" for (r, n), res in sorted(results.items())] or ["| none | |"]
+        lines += [f"| [{r}#{n}](https://github.com/{r}/pull/{n}) | {res} |" for (r, n), res in sorted(results.items())] or ["| none | |"]
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
     sys.exit(1 if any(v.startswith(("failed", "error")) for v in results.values()) else 0)
