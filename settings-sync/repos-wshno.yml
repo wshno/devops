@@ -45,16 +45,56 @@ repos:
       - rulesets/main-baseline.json
       - rulesets/pr-build-required.json
     file-sync:
-      - &zizmor {name: zizmor workflow, source: workflows/zizmor.yml, target: .github/workflows/zizmor.yml, group: repository standards}
-      - &zizmorcfg {name: zizmor config, source: zizmor-config.yml, target: .github/zizmor.yml, group: repository standards}
-      - &poutine {name: poutine workflow, source: workflows/poutine.yml, target: .github/workflows/poutine.yml, group: repository standards}
-      - &poutinecfg {name: poutine config, source: poutine-config.yml, target: .poutine.yml, group: repository standards}
-      - &codeowners {name: CODEOWNERS, source: CODEOWNERS, target: .github/CODEOWNERS, group: repository standards}
-      - &release {name: Create release workflow, source: workflows/tag-and-release.yml, target: .github/workflows/tag-and-release.yml, group: repository standards}
-      - &automerge {name: Dependabot auto-merge workflow, source: workflows/dependabot-auto-merge.yml, target: .github/workflows/dependabot-auto-merge.yml, group: repository standards}
-      - &mdiff {name: Manifest diff workflow, source: workflows/manifest-diff.yml, target: .github/workflows/manifest-diff.yml, group: repository standards}
-      - &typelabel {name: Type label workflow, source: workflows/type-label.yml, target: .github/workflows/type-label.yml, group: repository standards}
-      - &releasecfg {name: Release notes config, source: release.yml, target: .github/release.yml, group: repository standards}
+      - &zizmor
+        name: zizmor workflow
+        source: workflows/zizmor.yml
+        target: .github/workflows/zizmor.yml
+        group: repository standards
+      - &zizmorcfg
+        name: zizmor config
+        source: zizmor-config.yml
+        target: .github/zizmor.yml
+        group: repository standards
+      - &poutine
+        name: poutine workflow
+        source: workflows/poutine.yml
+        target: .github/workflows/poutine.yml
+        group: repository standards
+      - &poutinecfg
+        name: poutine config
+        source: poutine-config.yml
+        target: .poutine.yml
+        group: repository standards
+      - &codeowners
+        name: CODEOWNERS
+        source: CODEOWNERS
+        target: .github/CODEOWNERS
+        group: repository standards
+      - &release
+        name: Create release workflow
+        source: workflows/tag-and-release.yml
+        target: .github/workflows/tag-and-release.yml
+        group: repository standards
+      - &automerge
+        name: Dependabot auto-merge workflow
+        source: workflows/dependabot-auto-merge.yml
+        target: .github/workflows/dependabot-auto-merge.yml
+        group: repository standards
+      - &mdiff
+        name: Manifest diff workflow
+        source: workflows/manifest-diff.yml
+        target: .github/workflows/manifest-diff.yml
+        group: repository standards
+      - &typelabel
+        name: Type label workflow
+        source: workflows/type-label.yml
+        target: .github/workflows/type-label.yml
+        group: repository standards
+      - &releasecfg
+        name: Release notes config
+        source: release.yml
+        target: .github/release.yml
+        group: repository standards
   - repo: wshno/romslig
     dependabot-yml: dependabot/node-workspaces.yml
     environments-file: *envbot
