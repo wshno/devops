@@ -16,6 +16,7 @@
 # dependabot-yml: the stack template from settings-sync/files/dependabot/ (built by
 # settings-sync/dependabot/build.py), synced as .github/dependabot.yml in a PR of its own.
 #
+# dependabot-update-dotnet-lockfiles.yml goes to the .NET repos (packages.lock.json + locked restore).
 # type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
 # Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
 #
@@ -106,6 +107,11 @@ repos:
         source: release.yml
         target: .github/release.yml
         group: repository standards
+      - &lockfiles
+        name: Dependabot lockfiles workflow
+        source: workflows/dependabot-update-dotnet-lockfiles.yml
+        target: .github/workflows/dependabot-update-dotnet-lockfiles.yml
+        group: repository standards
   - repo: hwinther/skylens
     dependabot-yml: dependabot/skylens.yml
     environments-file: *envbot
@@ -124,6 +130,7 @@ repos:
       - *mdiff
       - *typelabel
       - *releasecfg
+      - *lockfiles
   - repo: hwinther/pbs-browser
     dependabot-yml: dependabot/dotnet-node.yml
     environments-file: *envbot
@@ -145,6 +152,7 @@ repos:
       # (the API answers 422), so they stay off here instead of failing every run.
       - *typelabel
       - *releasecfg
+      - *lockfiles
   - repo: hwinther/ddnsadmin
     dependabot-yml: dependabot/python-node.yml
     allow-auto-merge: false
@@ -178,6 +186,7 @@ repos:
       - *mdiff
       - *typelabel
       - *releasecfg
+      - *lockfiles
   - repo: hwinther/wsh-rtl-sdr
     dependabot-yml: dependabot/wsh-rtl-sdr.yml
     environments-file: *envbot

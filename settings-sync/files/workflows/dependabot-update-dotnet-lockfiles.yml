@@ -1,0 +1,32 @@
+# Synced from wshno/devops settings-sync/files/workflows/dependabot-update-dotnet-lockfiles.yml: change it there.
+name: Dependabot lockfiles
+
+# Dependabot only rewrites the bumped project's packages.lock.json, so projects referencing it fail the
+# locked-mode restore (NU1004). On a Dependabot PR labelled update-dotnet-lockfiles (the synced
+# Dependabot config sets it on every NuGet PR), this restores every tracked .sln/.slnx and pushes the
+# refreshed lockfiles back to the PR branch as the wshno-devops-bot App, so the PR's checks run again.
+#
+# Needs: repository variable DEVOPS_BOT_CLIENT_ID, and APP_PRIVATE_KEY in the devops-bot environment
+# (main only; pull_request_target runs on the base branch, so the policy admits it).
+
+on:
+  # pull_request_target so the push back to the Dependabot branch has a token at all (Dependabot's own
+  # pull_request runs are read-only). The reusable job only runs for Dependabot-authored PRs with the
+  # label; only people with write access can push to those branches.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types:
+      - labeled
+      - synchronize
+
+permissions: {}
+
+jobs:
+  update-lockfiles:
+    permissions:
+      contents: read
+    uses: hwinther/reusable-workflows/.github/workflows/dependabot-update-dotnet-lockfiles.yml@187aa9dd45b3020ac0a22a8ab4530a3cec60b31b # v2.30.0
+    with:
+      app_client_id: ${{ vars.DEVOPS_BOT_CLIENT_ID }}
+      environment: devops-bot
+    secrets:
+      app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
