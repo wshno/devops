@@ -19,12 +19,18 @@
 # type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
 # Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
 #
+# CodeQL default setup is turned OFF everywhere (code-scanning: false in the workflow); the scanners
+# are zizmor, poutine (and Grype) uploading SARIF.
+#
 # Rulesets/environments (applied directly, not via PR):
 #   rulesets/main-baseline.json   floor for the default branch: PR required (squash/rebase), code-owner
 #                                 review (only bites on the CODEOWNERS paths), linear history, no
 #                                 force-push/deletion; admins bypass. Added NEXT TO each repo's own
 #                                 ruleset (status checks, code scanning stay there); the strictest rule
 #                                 wins. Not on wsh-pve: its patch/changelog workflows push to main.
+#                                 Also: review threads resolved; no high+ zizmor/poutine alerts.
+#   rulesets/pr-build-required.json  `pr-build / pr-build` must pass; only repos whose CI is the
+#                                 reusable pr-build (it always reports, also when it skips).
 #   environments/devops-bot.yml   main-only environment for the APP_PRIVATE_KEY secret.
 #   ddnsadmin gets neither: private on the free plan, no rulesets or environments.
 #
@@ -35,7 +41,9 @@ repos:
   - repo: wshno/wshno
     dependabot-yml: dependabot/node.yml
     environments-file: &envbot environments/devops-bot.yml
-    rulesets-file: &rsbase rulesets/main-baseline.json
+    rulesets-file:
+      - rulesets/main-baseline.json
+      - rulesets/pr-build-required.json
     file-sync:
       - &zizmor {name: zizmor workflow, source: workflows/zizmor.yml, target: .github/workflows/zizmor.yml, group: repository standards}
       - &zizmorcfg {name: zizmor config, source: zizmor-config.yml, target: .github/zizmor.yml, group: repository standards}
@@ -50,7 +58,9 @@ repos:
   - repo: wshno/romslig
     dependabot-yml: dependabot/node-workspaces.yml
     environments-file: *envbot
-    rulesets-file: *rsbase
+    rulesets-file:
+      - rulesets/main-baseline.json
+      - rulesets/pr-build-required.json
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -65,7 +75,7 @@ repos:
   - repo: wshno/frontend-packages
     dependabot-yml: dependabot/npm-library.yml
     environments-file: *envbot
-    rulesets-file: *rsbase
+    rulesets-file: rulesets/main-baseline.json
     file-sync:
       - *zizmor
       - *zizmorcfg
@@ -78,7 +88,9 @@ repos:
   - repo: wshno/static-server
     dependabot-yml: dependabot/go.yml
     environments-file: *envbot
-    rulesets-file: *rsbase
+    rulesets-file:
+      - rulesets/main-baseline.json
+      - rulesets/pr-build-required.json
     file-sync:
       - *zizmor
       - *zizmorcfg
