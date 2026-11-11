@@ -7,7 +7,7 @@ Writes <out-dir>/index.html and <out-dir>/data.json. Per repo, from the GitHub A
 
   release     latest GitHub release (tag, date)
   unreleased  commits and changed files/lines from that tag to the default branch, files under
-              .github/ left out (workflow-only changes need no release)
+              .github/ and YAML files in the root (tool configs) left out: they need no release
   prs         open pull requests: Dependabot, Renovate and the rest
   frameworks  Node (package.json engines, .nvmrc/.node-version, Dockerfile `FROM node:N`, workflow
               node_version / node-version), Python (pyproject.toml requires-python, .python-version,
@@ -60,6 +60,9 @@ WORKFLOW_PYTHON = re.compile(r"python[_-]version:\s*[\"']?(\d+\.\d+)")
 REQUIRES_PYTHON = re.compile(r"^\s*requires-python\s*=\s*[\"']([^\"']+)", re.MULTILINE)
 TARGET_FRAMEWORK = re.compile(r"<TargetFrameworks?>([^<]+)</TargetFrameworks?>")
 NET_TFM = re.compile(r"^net(\d+)\.(\d+)")
+# Changes that need no release: everything under .github/ and YAML files in the repository root
+# (tool configs such as .poutine.yml, codecov.yml), not YAML further down.
+NO_RELEASE_PATH = re.compile(r"^\.github/|^[^/]+\.ya?ml$")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -107,7 +110,7 @@ def release_and_drift(repo, owner, branch):
     compare = try_gh(f"/repos/{repo}/compare/{release['tag_name']}...{branch}?per_page=100", owner)
     if not compare:
         return info, None
-    files = [f for f in compare.get("files", []) if not f["filename"].startswith(".github/")]
+    files = [f for f in compare.get("files", []) if not NO_RELEASE_PATH.search(f["filename"])]
     drift = {
         "commits": compare["ahead_by"],
         "files": len(files),
@@ -511,7 +514,7 @@ def cell_drift(r):
     if not d:
         return '<span class="muted">–</span>'
     if d["files"] == 0:
-        return f'<span class="ok">nothing to release</span><br><span class="muted">{d["commits"]} commits (.github only)</span>' if d["commits"] else '<span class="ok">up to date</span>'
+        return f'<span class="ok">nothing to release</span><br><span class="muted">{d["commits"]} commits (.github and root YAML only)</span>' if d["commits"] else '<span class="ok">up to date</span>'
     cls = "warn" if d["commits"] < DRIFT_BAD_COMMITS else "bad"
     more = "+" if d["truncated"] else ""
     return (f'<a href="{esc(d["url"])}" class="{cls}">{d["commits"]} commits</a><br>'
