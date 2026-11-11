@@ -158,6 +158,15 @@ RTL_SDR_PIP = block("pip", DEEP, extra=ignore([
     ("aioprometheus", None, ["aioprometheus stays on the version dump1090-exporter is written against."]),
 ]) + PIP_GROUPS)
 
+# kubernetes-yaml-formatter: a VS Code extension. vsce refuses @types/vscode newer than
+# engines.vscode, so it moves by hand together with the engine floor.
+KYF_NPM = npm(["/"], extra_ignores=[
+    ("@types/vscode", None, ["@types/vscode must stay <= engines.vscode (vsce enforces it): bumped by hand with the",
+                             "engine floor."]),
+], extra_groups=[
+    ("vscode-test", ["@vscode/test-cli", "@vscode/test-electron", "@types/mocha"]),
+])
+
 STACKS = {
     "dotnet-node": ("GitHub Actions, Docker, NuGet, npm", [ACTIONS, DOCKER, NUGET, npm(DEEP)]),
     "node": ("GitHub Actions, Docker, npm", [ACTIONS, DOCKER, npm(DEEP)]),
@@ -170,6 +179,8 @@ STACKS = {
     "skylens": ("hwinther/skylens: GitHub Actions, Docker, NuGet, npm with the Expo SDK pins", [
         ACTIONS, DOCKER, NUGET,
         npm(DEEP, extra_ignores=SKYLENS_IGNORES, extra_groups=[("expo", ["expo", "expo-*", "@expo/*"])])]),
+    "kubernetes-yaml-formatter": ("hwinther/kubernetes-yaml-formatter: GitHub Actions, npm (VS Code extension)",
+                                  [ACTIONS, KYF_NPM]),
     "wsh-rtl-sdr": ("hwinther/wsh-rtl-sdr: GitHub Actions, Docker (daily: the feeder images track upstream), pip", [
         ACTIONS,
         block("docker", DEEP, extra=DOCKER_GROUPS, interval="daily"),
