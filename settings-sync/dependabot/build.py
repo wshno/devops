@@ -25,6 +25,8 @@ HEADER = """# Synced from wshno/devops settings-sync/files/dependabot/{name}.yml
 # manifest are skipped. Cooldown: 7 days, 14 for GitHub Actions, so the synced workflows are updated
 # in wshno/devops (Renovate, 7 days) and synced before Dependabot here proposes the same bump.
 # Groups: a dependency goes to the FIRST group that matches; groups that match nothing are harmless.
+# Commit messages and PR titles are Conventional Commits, chore(deps): / chore(deps-dev):, so the
+# Type label workflow labels them and tag-and-release counts them as patch.
 
 version: 2
 updates:
@@ -54,6 +56,9 @@ def block(ecosystem, dirs, cooldown=7, extra="", interval="weekly"):
             "    schedule:\n" + schedule
             + "    cooldown:\n"
             f"      default-days: {cooldown}\n"
+            "    commit-message:\n"
+            "      prefix: 'chore'\n"
+            "      include: 'scope'\n"
             "    assignees:\n" + seq(["hwinther"], 6)
             + extra)
 
