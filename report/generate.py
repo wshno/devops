@@ -20,8 +20,9 @@ Writes <out-dir>/index.html and <out-dir>/data.json. Per repo, from the GitHub A
               `quality-summary` workflow artifact on the default branch
   branches    branches without an open PR (GraphQL), in both tables: "delete" when the last PR was
               merged or nothing is ahead of the default branch (squash merges leave the branch
-              "ahead", so the PR state decides), "no PR" when it has commits of its own and never had
-              a PR, "closed PR" when its PR was closed unmerged. `ignore_branches` (fnmatch
+              "ahead", so the PR state decides), "after merge" when it got commits after its PR
+              merged, "no PR" when it has commits of its own and never had a PR, "closed PR" when
+              its PR was closed unmerged. `ignore_branches` (fnmatch
               patterns, top level and per repo) leaves long-lived branches out.
 
 Auth: GITHUB_TOKEN_<OWNER> (owner upper-cased, `-` as `_`) per owner, else GITHUB_TOKEN. A GitHub
@@ -144,7 +145,7 @@ query($owner: String!, $name: String!, $default: String!, $after: String) {
         target { ... on Commit { committedDate } }
         open: associatedPullRequests(states: OPEN) { totalCount }
         last: associatedPullRequests(first: 1, orderBy: {field: CREATED_AT, direction: DESC}) {
-          nodes { number state url }
+          nodes { number state url mergedAt }
         }
         compare(headRef: $default) { aheadBy behindBy }
       }
@@ -187,9 +188,13 @@ def stale_branches(repo, owner, default, ignore):
                 last = (ref["last"]["nodes"] or [None])[0]
                 # Base = this branch, head = default: behindBy is what the branch has that the default lacks.
                 ahead, behind = ref["compare"]["behindBy"], ref["compare"]["aheadBy"]
-                status = ("delete" if ahead == 0 or (last and last["state"] == "MERGED")
-                          else "closed" if last else "nopr")
                 date = (ref["target"] or {}).get("committedDate")
+                merged = last and last["state"] == "MERGED"
+                # Pushed to after its PR merged (the push recreates a deleted branch): those commits
+                # may be work that never reached the default branch.
+                after_merge = merged and ahead and date and last.get("mergedAt") and date > last["mergedAt"]
+                status = ("aftermerge" if after_merge else "delete" if ahead == 0 or merged
+                          else "closed" if last else "nopr")
                 items.append({"name": branch, "status": status, "ahead": ahead, "behind": behind, "lastCommit": date,
                               "ageDays": days_since(date) if date else None, "pr": last})
             if not refs["pageInfo"]["hasNextPage"]:
@@ -199,7 +204,7 @@ def stale_branches(repo, owner, default, ignore):
         print(f"  branches: {error}", file=sys.stderr)
         return None
     items.sort(key=lambda b: b["lastCommit"] or "", reverse=True)
-    counts = {s: sum(1 for b in items if b["status"] == s) for s in ("delete", "nopr", "closed")}
+    counts = {s: sum(1 for b in items if b["status"] == s) for s in ("delete", "nopr", "closed", "aftermerge")}
     return {"total": len(items), **counts, "items": items}
 
 
@@ -524,7 +529,8 @@ def cell_prs(r):
     return "<br>".join(parts)
 
 
-BRANCH_STATUS = {"nopr": ("no PR", "below"), "closed": ("closed PR", "unknown"), "delete": ("delete", "ok")}
+BRANCH_STATUS = {"nopr": ("no PR", "below"), "aftermerge": ("commits after merge", "below"),
+                 "closed": ("closed PR", "unknown"), "delete": ("delete", "ok")}
 
 
 def branches_page_name(repo):
@@ -543,6 +549,8 @@ def cell_branches(r):
         oldest = max(i["ageDays"] or 0 for i in b["items"] if i["status"] == "nopr")
         cls = "warn" if oldest <= 30 else "bad"
         parts.append(f'<span class="{cls} num">{b["nopr"]}</span> no PR')
+    if b["aftermerge"]:
+        parts.append(f'<span class="warn num">{b["aftermerge"]}</span> after merge')
     if b["closed"]:
         parts.append(f'<span class="num">{b["closed"]}</span> closed PR')
     if b["delete"]:
@@ -570,6 +578,7 @@ def render_branches_page(r):
             f'<td class="num"><span class="{age_cls}">{"" if age is None else f"{age} d"}</span></td><td>{pr_html}</td></tr>'
         )
     filters = filter_buttons("branch-table", [("all", f"All ({b['total']})"), ("nopr", f"No PR ({b['nopr']})"),
+                                              ("aftermerge", f"After merge ({b['aftermerge']})"),
                                               ("closed", f"Closed PR ({b['closed']})"), ("delete", f"Delete ({b['delete']})")])
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -578,6 +587,7 @@ def render_branches_page(r):
 <header><h1><a href="index.html">Repository report</a> / <a href="{esc(r["url"])}">{esc(r["repo"])}</a></h1>{THEME_TOGGLE}</header>
 <p class="sub">Branches without an open pull request, newest commit first.
 <span class="chip below">no PR</span> has commits of its own and never had a PR: open one or delete it.
+<span class="chip below">commits after merge</span> pushed to after its PR merged: check that nothing was lost.
 <span class="chip unknown">closed PR</span> its PR was closed unmerged.
 <span class="chip ok">delete</span> its PR was merged, or nothing on it is missing from {esc(default)}.
 Ahead / behind is against {esc(default)}; with squash merges a merged branch still shows commits ahead.</p>
