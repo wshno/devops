@@ -40,6 +40,7 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
       - CI
+      - PR build # kubernetes-yaml-formatter's CI
       - E2E
       - zizmor
       - poutine
