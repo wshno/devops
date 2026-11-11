@@ -18,11 +18,18 @@ Writes <out-dir>/index.html and <out-dir>/data.json. Per repo, from the GitHub A
               also red once endoflife.date marks it EOL. npm's latest shows in the tooltip.
   quality     summary.json (hwinther/reusable-workflows docs/quality-artifact.md) from the newest
               `quality-summary` workflow artifact on the default branch
+  branches    branches without an open PR (GraphQL), in both tables: "delete" when the last PR was
+              merged or nothing is ahead of the default branch (squash merges leave the branch
+              "ahead", so the PR state decides), "after merge" when it got commits after its PR
+              merged, "no PR" when it has commits of its own and never had a PR, "closed PR" when
+              its PR was closed unmerged. `ignore_branches` (fnmatch
+              patterns, top level and per repo) leaves long-lived branches out.
 
 Auth: GITHUB_TOKEN_<OWNER> (owner upper-cased, `-` as `_`) per owner, else GITHUB_TOKEN. A GitHub
 App installation token per owner needs contents, pull requests, actions and metadata: read.
 """
 
+import fnmatch
 import html
 import io
 import json
@@ -126,6 +133,79 @@ def open_prs(repo, owner):
         key = "dependabot" if login.startswith("dependabot") else "renovate" if login.startswith("renovate") else "other"
         counts[key] += 1
     return counts
+
+
+BRANCHES_QUERY = """
+query($owner: String!, $name: String!, $default: String!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    refs(refPrefix: "refs/heads/", first: 50, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        name
+        target { ... on Commit { committedDate } }
+        open: associatedPullRequests(states: OPEN) { totalCount }
+        last: associatedPullRequests(first: 1, orderBy: {field: CREATED_AT, direction: DESC}) {
+          nodes { number state url mergedAt }
+        }
+        compare(headRef: $default) { aheadBy behindBy }
+      }
+    }
+  }
+}
+"""
+
+# Always left out: merge-queue temporaries.
+IGNORED_BRANCHES = ["gh-readonly-queue/*"]
+
+
+def graphql(query, variables, owner):
+    request = urllib.request.Request(
+        f"{API}/graphql",
+        data=json.dumps({"query": query, "variables": variables}).encode(),
+        headers={"Authorization": f"Bearer {token_for(owner)}", "Content-Type": "application/json",
+                 "User-Agent": "wshno-devops-report"},
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        body = json.loads(response.read())
+    if body.get("errors"):
+        raise RuntimeError("; ".join(e.get("message", "") for e in body["errors"]))
+    return body["data"]
+
+
+def stale_branches(repo, owner, default, ignore):
+    """Branches without an open PR, newest first. None when the query fails (the report still renders)."""
+    name_owner, name = repo.split("/")
+    patterns = IGNORED_BRANCHES + list(ignore)
+    items, after = [], None
+    try:
+        while True:
+            refs = graphql(BRANCHES_QUERY, {"owner": name_owner, "name": name, "default": default, "after": after},
+                           owner)["repository"]["refs"]
+            for ref in refs["nodes"]:
+                branch = ref["name"]
+                if branch == default or ref["open"]["totalCount"] or any(fnmatch.fnmatch(branch, p) for p in patterns):
+                    continue
+                last = (ref["last"]["nodes"] or [None])[0]
+                # Base = this branch, head = default: behindBy is what the branch has that the default lacks.
+                ahead, behind = ref["compare"]["behindBy"], ref["compare"]["aheadBy"]
+                date = (ref["target"] or {}).get("committedDate")
+                merged = last and last["state"] == "MERGED"
+                # Pushed to after its PR merged (the push recreates a deleted branch): those commits
+                # may be work that never reached the default branch.
+                after_merge = merged and ahead and date and last.get("mergedAt") and date > last["mergedAt"]
+                status = ("aftermerge" if after_merge else "delete" if ahead == 0 or merged
+                          else "closed" if last else "nopr")
+                items.append({"name": branch, "status": status, "ahead": ahead, "behind": behind, "lastCommit": date,
+                              "ageDays": days_since(date) if date else None, "pr": last})
+            if not refs["pageInfo"]["hasNextPage"]:
+                break
+            after = refs["pageInfo"]["endCursor"]
+    except (urllib.error.URLError, RuntimeError, KeyError, TypeError) as error:
+        print(f"  branches: {error}", file=sys.stderr)
+        return None
+    items.sort(key=lambda b: b["lastCommit"] or "", reverse=True)
+    counts = {s: sum(1 for b in items if b["status"] == s) for s in ("delete", "nopr", "closed", "aftermerge")}
+    return {"total": len(items), **counts, "items": items}
 
 
 def dotnet_cycles():
@@ -296,13 +376,15 @@ def collect(config):
         owner = repo.split("/")[0]
         print(f"{repo} ...", file=sys.stderr)
         meta = gh(f"/repos/{repo}", owner)
+        branch = meta["default_branch"]
+        ignore = config.get("ignore_branches", []) + entry.get("ignore_branches", [])
         if entry.get("report") == "prs":
             rows.append({
                 "repo": repo, "url": meta["html_url"], "kind": entry.get("kind", "other"), "private": meta["private"],
-                "report": "prs", "prs": open_prs(repo, owner),
+                "report": "prs", "defaultBranch": branch, "prs": open_prs(repo, owner),
+                "branches": stale_branches(repo, owner, branch, ignore),
             })
             continue
-        branch = meta["default_branch"]
         release, drift = release_and_drift(repo, owner, branch)
         rows.append({
             "repo": repo,
@@ -314,6 +396,7 @@ def collect(config):
             "release": release,
             "unreleased": drift,
             "prs": open_prs(repo, owner),
+            "branches": stale_branches(repo, owner, branch, ignore),
             "frameworks": frameworks(repo, owner, branch, {**config["minimums"], **entry.get("minimums", {})}, dotnet, pythons, npm_cache),
         })
         rows[-1]["quality"], rows[-1]["qualityDetails"] = quality(repo, owner, branch)
@@ -444,6 +527,77 @@ def cell_prs(r):
         if p[kind]:
             parts.append(pr_link(r, kind, label))
     return "<br>".join(parts)
+
+
+BRANCH_STATUS = {"nopr": ("no PR", "below"), "aftermerge": ("commits after merge", "below"),
+                 "closed": ("closed PR", "unknown"), "delete": ("delete", "ok")}
+
+
+def branches_page_name(repo):
+    return f"branches-{repo.replace('/', '-')}.html"
+
+
+def cell_branches(r):
+    """Branches without an open PR: the ones that should get one first, then the ones to delete."""
+    b = r.get("branches")
+    if b is None:
+        return '<span class="muted">–</span>'
+    if not b["total"]:
+        return '<span class="muted">none</span>'
+    parts = []
+    if b["nopr"]:
+        oldest = max(i["ageDays"] or 0 for i in b["items"] if i["status"] == "nopr")
+        cls = "warn" if oldest <= 30 else "bad"
+        parts.append(f'<span class="{cls} num">{b["nopr"]}</span> no PR')
+    if b["aftermerge"]:
+        parts.append(f'<span class="warn num">{b["aftermerge"]}</span> after merge')
+    if b["closed"]:
+        parts.append(f'<span class="num">{b["closed"]}</span> closed PR')
+    if b["delete"]:
+        parts.append(f'<span class="muted num">{b["delete"]} to delete</span>')
+    return f'<a class="drill" href="{esc(branches_page_name(r["repo"]))}">{"<br>".join(parts)}</a>'
+
+
+def render_branches_page(r):
+    b = r["branches"]
+    default = r["defaultBranch"]
+    rows = []
+    for i in b["items"]:
+        label, cls = BRANCH_STATUS[i["status"]]
+        quoted = urllib.parse.quote(i["name"], safe="/")
+        compare = f'{r["url"]}/compare/{urllib.parse.quote(default, safe="/")}...{quoted}'
+        pr = i["pr"]
+        pr_html = (f'<a href="{esc(pr["url"])}">#{pr["number"]}</a> <span class="muted">{esc(pr["state"].lower())}</span>'
+                   if pr else '<span class="muted">none</span>')
+        age = i["ageDays"]
+        age_cls = "muted" if age is None or age <= 30 else "warn" if age <= 90 else "bad"
+        rows.append(
+            f'<tr data-tags="{i["status"]}"><td class="file"><a href="{esc(r["url"])}/tree/{esc(quoted)}">{esc(i["name"])}</a></td>'
+            f'<td><span class="chip {cls}">{label}</span></td>'
+            f'<td class="num"><a href="{esc(compare)}">+{i["ahead"]} / −{i["behind"]}</a></td>'
+            f'<td class="num"><span class="{age_cls}">{"" if age is None else f"{age} d"}</span></td><td>{pr_html}</td></tr>'
+        )
+    filters = filter_buttons("branch-table", [("all", f"All ({b['total']})"), ("nopr", f"No PR ({b['nopr']})"),
+                                              ("aftermerge", f"After merge ({b['aftermerge']})"),
+                                              ("closed", f"Closed PR ({b['closed']})"), ("delete", f"Delete ({b['delete']})")])
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(r["repo"])} · branches</title><style>{STYLE}{PAGE_STYLE}</style>{THEME_SCRIPT}{PAGE_SCRIPT}</head>
+<body><main>
+<header><h1><a href="index.html">Repository report</a> / <a href="{esc(r["url"])}">{esc(r["repo"])}</a></h1>{THEME_TOGGLE}</header>
+<p class="sub">Branches without an open pull request, newest commit first.
+<span class="chip below">no PR</span> has commits of its own and never had a PR: open one or delete it.
+<span class="chip below">commits after merge</span> pushed to after its PR merged: check that nothing was lost.
+<span class="chip unknown">closed PR</span> its PR was closed unmerged.
+<span class="chip ok">delete</span> its PR was merged, or nothing on it is missing from {esc(default)}.
+Ahead / behind is against {esc(default)}; with squash merges a merged branch still shows commits ahead.</p>
+{filters}
+<div class="wrap fit"><table id="branch-table" class="narrow"><thead><tr><th>Branch</th><th>Status</th><th>Ahead / behind</th>
+<th>Last commit</th><th>Last PR</th></tr></thead><tbody>
+{chr(10).join(rows)}
+</tbody></table></div>
+</main></body></html>
+"""
 
 
 def chip(status, label, title, newer=False):
@@ -718,14 +872,16 @@ def render(data):
     for r in (r for r in data["repos"] if r["report"] == "prs"):
         pr_rows.append(
             f'<tr>{repo_cell(r)}<td class="num">{pr_link(r, "other")}</td>'
-            f'<td class="num">{pr_link(r, "dependabot")}</td><td class="num">{pr_link(r, "renovate")}</td></tr>'
+            f'<td class="num">{pr_link(r, "dependabot")}</td><td class="num">{pr_link(r, "renovate")}</td>'
+            f'<td>{cell_branches(r)}</td></tr>'
         )
     rows = []
     for r in (r for r in data["repos"] if r["report"] == "full"):
         q = r["quality"]
         rows.append(
             f"<tr>{repo_cell(r)}"
-            f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td class=\"prs\">{cell_prs(r)}</td><td>{cell_frameworks(r)}</td>"
+            f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td class=\"prs\">{cell_prs(r)}</td>"
+            f"<td class=\"prs\">{cell_branches(r)}</td><td>{cell_frameworks(r)}</td>"
             f"<td>{cell_tests(q)}</td><td>{drill(r, 'coverage', cell_coverage(q, data['coverageThreshold']))}</td>"
             f"<td>{drill(r, 'warnings', cell_warnings(q))}</td><td>{drill(r, 'vulnerabilities', cell_vulns(q, r.get('qualityDetails')))}</td>"
             "</tr>"
@@ -740,14 +896,14 @@ def render(data):
 <span class="muted">\u2191 newer major on npm</span> ·
 <a href="data.json">data.json</a></p>
 <div class="wrap"><table>
-<thead><tr><th>Repository</th><th>Latest release</th><th>Unreleased on main</th><th>Open PRs</th><th>Frameworks</th>
+<thead><tr><th>Repository</th><th>Latest release</th><th>Unreleased on main</th><th>Open PRs</th><th>Branches without PR</th><th>Frameworks</th>
 <th>Tests</th><th>Line coverage</th><th>Warnings</th><th>Vulnerabilities</th></tr></thead>
 <tbody>
 {chr(10).join(rows)}
 </tbody></table></div>
 {f'''<h2>Open pull requests</h2>
 <div class="wrap fit"><table class="narrow">
-<thead><tr><th>Repository</th><th>Open</th><th>Dependabot</th><th>Renovate</th></tr></thead>
+<thead><tr><th>Repository</th><th>Open</th><th>Dependabot</th><th>Renovate</th><th>Branches without PR</th></tr></thead>
 <tbody>
 {chr(10).join(pr_rows)}
 </tbody></table></div>''' if pr_rows else ""}
@@ -765,6 +921,8 @@ def main():
     for r in data["repos"]:
         if r.get("qualityDetails"):
             (out / page_name(r["repo"])).write_text(render_repo_page(r, data), encoding="utf-8")
+        if r.get("branches") and r["branches"]["total"]:
+            (out / branches_page_name(r["repo"])).write_text(render_branches_page(r), encoding="utf-8")
     public = {**data, "repos": [{k: v for k, v in r.items() if k != "qualityDetails"} for r in data["repos"]]}
     (out / "data.json").write_text(json.dumps(public, indent=2) + "\n", encoding="utf-8")
     (out / "index.html").write_text(render(data), encoding="utf-8")
