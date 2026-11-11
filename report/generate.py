@@ -481,12 +481,28 @@ def esc(value):
     return html.escape(str(value))
 
 
+# Thresholds for yellow (warn) and red (bad). The cells and the legend under the table both read
+# these, so the legend can't drift from what is highlighted. Coverage uses coverage_threshold from
+# repos.yaml, yellow down to COVERAGE_WARN_MARGIN points below it.
+AGE_WARN_DAYS = 30  # release age and branch last commit: yellow after this
+AGE_BAD_DAYS = 90  # ... and red after this
+DRIFT_BAD_COMMITS = 20  # unreleased commits on main
+NOPR_BAD_DAYS = 30  # oldest branch with no PR
+QUALITY_STALE_DAYS = 7  # quality data from an older run
+COVERAGE_WARN_MARGIN = 15
+WARNINGS_BAD = 20
+
+
+def age_class(age, fresh="ok"):
+    return fresh if age <= AGE_WARN_DAYS else "warn" if age <= AGE_BAD_DAYS else "bad"
+
+
 def cell_release(r):
     rel = r["release"]
     if not rel:
         return '<span class="muted">no release</span>'
     age = rel["ageDays"]
-    cls = "ok" if age <= 30 else "warn" if age <= 90 else "bad"
+    cls = age_class(age)
     return f'<a href="{esc(rel["url"])}">{esc(rel["tag"])}</a><br><span class="{cls}">{age} d ago</span>'
 
 
@@ -496,7 +512,7 @@ def cell_drift(r):
         return '<span class="muted">–</span>'
     if d["files"] == 0:
         return f'<span class="ok">nothing to release</span><br><span class="muted">{d["commits"]} commits (.github only)</span>' if d["commits"] else '<span class="ok">up to date</span>'
-    cls = "warn" if d["commits"] < 20 else "bad"
+    cls = "warn" if d["commits"] < DRIFT_BAD_COMMITS else "bad"
     more = "+" if d["truncated"] else ""
     return (f'<a href="{esc(d["url"])}" class="{cls}">{d["commits"]} commits</a><br>'
             f'<span class="num muted">{d["files"]}{more} files, +{d["additions"]} −{d["deletions"]}</span>')
@@ -547,7 +563,7 @@ def cell_branches(r):
     parts = []
     if b["nopr"]:
         oldest = max(i["ageDays"] or 0 for i in b["items"] if i["status"] == "nopr")
-        cls = "warn" if oldest <= 30 else "bad"
+        cls = "warn" if oldest <= NOPR_BAD_DAYS else "bad"
         parts.append(f'<span class="{cls} num">{b["nopr"]}</span> no PR')
     if b["aftermerge"]:
         parts.append(f'<span class="warn num">{b["aftermerge"]}</span> after merge')
@@ -570,7 +586,7 @@ def render_branches_page(r):
         pr_html = (f'<a href="{esc(pr["url"])}">#{pr["number"]}</a> <span class="muted">{esc(pr["state"].lower())}</span>'
                    if pr else '<span class="muted">none</span>')
         age = i["ageDays"]
-        age_cls = "muted" if age is None or age <= 30 else "warn" if age <= 90 else "bad"
+        age_cls = "muted" if age is None else age_class(age, fresh="muted")
         rows.append(
             f'<tr data-tags="{i["status"]}"><td class="file"><a href="{esc(r["url"])}/tree/{esc(quoted)}">{esc(i["name"])}</a></td>'
             f'<td><span class="chip {cls}">{label}</span></td>'
@@ -590,7 +606,8 @@ def render_branches_page(r):
 <span class="chip below">commits after merge</span> pushed to after its PR merged: check that nothing was lost.
 <span class="chip unknown">closed PR</span> its PR was closed unmerged.
 <span class="chip ok">delete</span> its PR was merged, or nothing on it is missing from {esc(default)}.
-Ahead / behind is against {esc(default)}; with squash merges a merged branch still shows commits ahead.</p>
+Ahead / behind is against {esc(default)}; with squash merges a merged branch still shows commits ahead.
+Last commit turns <span class="warn">yellow after {AGE_WARN_DAYS} d</span> and <span class="bad">red after {AGE_BAD_DAYS} d</span>.</p>
 {filters}
 <div class="wrap fit"><table id="branch-table" class="narrow"><thead><tr><th>Branch</th><th>Status</th><th>Ahead / behind</th>
 <th>Last commit</th><th>Last PR</th></tr></thead><tbody>
@@ -634,7 +651,7 @@ def cell_tests(q):
         cls = "bad" if t["failed"] else "ok"
         out.append(f'<span class="{cls} num">{t["passed"]}/{t["total"]}</span> <span class="muted">{esc(kind)}</span>')
     age = q.get("ageDays", 0)
-    out.append(f'<span class="{"muted" if age <= 7 else "warn"}">{age} d old</span>')
+    out.append(f'<span class="{"muted" if age <= QUALITY_STALE_DAYS else "warn"}">{age} d old</span>')
     return "<br>".join(out)
 
 
@@ -652,7 +669,7 @@ def cell_coverage(q, threshold):
     for name, c in q["components"].items():
         pct = (c.get("coverage") or {}).get("lines", {}).get("percent")
         if pct is not None:
-            cls = "ok" if pct >= threshold else "warn" if pct >= threshold - 15 else "bad"
+            cls = "ok" if pct >= threshold else "warn" if pct >= threshold - COVERAGE_WARN_MARGIN else "bad"
             out.append(f'<span class="{cls} num">{pct:.0f} %</span> <span class="muted">{esc(name)}</span>')
     return "<br>".join(out)
 
@@ -661,7 +678,7 @@ def cell_warnings(q):
     if not q or not any("warnings" in c for c in q["components"].values()):
         return ""
     total = q["totals"].get("warnings", 0)
-    return f'<span class="{"ok" if total == 0 else "warn" if total < 20 else "bad"} num">{total}</span>'
+    return f'<span class="{"ok" if total == 0 else "warn" if total < WARNINGS_BAD else "bad"} num">{total}</span>'
 
 
 def cell_vulns(q, details=None):
@@ -867,6 +884,30 @@ def render_repo_page(r, data):
 """
 
 
+def legend(threshold):
+    """What turns a cell green, yellow or red, built from the same constants the cells use."""
+    t, low = threshold, threshold - COVERAGE_WARN_MARGIN
+    rows = [
+        ("Latest release", f"≤ {AGE_WARN_DAYS} d old", f"{AGE_WARN_DAYS + 1}–{AGE_BAD_DAYS} d old", f"> {AGE_BAD_DAYS} d old"),
+        ("Unreleased on main", "nothing to release", f"1–{DRIFT_BAD_COMMITS - 1} commits", f"≥ {DRIFT_BAD_COMMITS} commits"),
+        ("Branches without PR", "–", f"branch with no PR, oldest ≤ {NOPR_BAD_DAYS} d; commits after merge",
+         f"branch with no PR older than {NOPR_BAD_DAYS} d"),
+        ("Frameworks", "at or above minimum", "–", "below minimum or EOL"),
+        ("Tests", "all passed", f"quality data older than {QUALITY_STALE_DAYS} d", "any test failed"),
+        ("Line coverage", f"≥ {t} %", f"{low}–{t} %", f"< {low} %"),
+        ("Warnings", "0", f"1–{WARNINGS_BAD - 1}", f"≥ {WARNINGS_BAD}"),
+        ("Vulnerabilities", "no critical or high", "high, no critical", "any critical"),
+    ]
+    body = "\n".join(f'<tr><td>{esc(col)}</td><td class="ok">{esc(ok)}</td><td class="warn">{esc(warn)}</td>'
+                     f'<td class="bad">{esc(bad)}</td></tr>' for col, ok, warn, bad in rows)
+    return f"""<h2 id="legend">Thresholds</h2>
+<div class="wrap fit"><table class="narrow">
+<thead><tr><th>Column</th><th>Green</th><th>Yellow (warning)</th><th>Red (error)</th></tr></thead>
+<tbody>
+{body}
+</tbody></table></div>"""
+
+
 def render(data):
     pr_rows = []
     for r in (r for r in data["repos"] if r["report"] == "prs"):
@@ -894,7 +935,7 @@ def render(data):
 <p class="sub">Generated {esc(data["generatedAt"])} · newest .NET: {data["dotnetLatestMajor"]} ·
 <span class="chip ok">at or above minimum</span><span class="chip below">below minimum / EOL</span>
 <span class="muted">\u2191 newer major on npm</span> ·
-<a href="data.json">data.json</a></p>
+<a href="#legend">thresholds</a> · <a href="data.json">data.json</a></p>
 <div class="wrap"><table>
 <thead><tr><th>Repository</th><th>Latest release</th><th>Unreleased on main</th><th>Open PRs</th><th>Branches without PR</th><th>Frameworks</th>
 <th>Tests</th><th>Line coverage</th><th>Warnings</th><th>Vulnerabilities</th></tr></thead>
@@ -907,6 +948,7 @@ def render(data):
 <tbody>
 {chr(10).join(pr_rows)}
 </tbody></table></div>''' if pr_rows else ""}
+{legend(data["coverageThreshold"])}
 </main></body></html>
 """
 
