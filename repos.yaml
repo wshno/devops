@@ -49,11 +49,15 @@ repos:
     kind: library
   - repo: hwinther/reusable-workflows
     kind: library
-
-  # Open PRs only, in a table of their own.
+  - repo: hwinther/kubernetes-yaml-formatter
+    kind: library
+  - repo: hwinther/wsh-rtl-sdr
+    kind: app
+  # Infra: its releases are for the images it builds, but "unreleased" counts every manifest commit too.
   - repo: hwinther/proxmox
     kind: infra
-    report: prs
+
+  # Open PRs only, in a table of their own.
   - repo: hwinther/private-apps
     kind: infra
     report: prs
@@ -61,12 +65,6 @@ repos:
     kind: infra
     report: prs
   - repo: hwinther/wsh-pve
-    kind: other
-    report: prs
-  - repo: hwinther/wsh-rtl-sdr
-    kind: other
-    report: prs
-  - repo: hwinther/kubernetes-yaml-formatter
     kind: other
     report: prs
   - repo: wshno/test-consumer
