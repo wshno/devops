@@ -212,6 +212,24 @@ repos:
       - *automerge
       - *typelabel
       - *releasecfg
+  # VS Code extension: its own release.yaml publishes to the Marketplace and Open VSX on a bare
+  # x.y.z tag and creates the GitHub release with generated notes, so no synced Create release.
+  # No labeler/stale (no .github/labeler.yml; little traffic).
+  - repo: hwinther/kubernetes-yaml-formatter
+    dependabot-yml: dependabot/kubernetes-yaml-formatter.yml
+    environments-file: *envbot
+    rulesets-file:
+      - rulesets/main-baseline.json
+      - rulesets/pr-build-required.json
+    file-sync:
+      - *zizmor
+      - *zizmorcfg
+      - *poutine
+      - *poutinecfg
+      - *codeowners
+      - *automerge
+      - *typelabel
+      - *releasecfg
   - repo: hwinther/lanot
     environments-file: *envbot
     rulesets-file: rulesets/main-baseline.json
