@@ -114,6 +114,21 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
           python3 -I settings-sync/sync-labels.py "${args[@]}"
 
+      # Nor artifact and log retention (Administration: write). GitHub's default is 90 days; on the
+      # private repos (free plan) artifacts count against the 500 MB Actions storage quota. The repo
+      # setting is also the ceiling, so quality-artifact's 90 days become this: the wshno/devops
+      # report then loses a repo's quality data once its newest main build is older than this.
+      - name: Sync artifact retention (${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'dry run' || 'apply' }})
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          OWNER: ${{ matrix.owner }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=("$OWNER" 30)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python3 -I settings-sync/sync-retention.py "${args[@]}"
+
   # Merges the sync PRs the run above opened or updated (and older ones still open) once every check
   # on them is green; pinned to the checked commit. Still running after 30 minutes: the next run.
   merge:
