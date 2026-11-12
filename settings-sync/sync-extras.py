@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Sets the Actions artifact and log retention in every repo of one owner.
+"""Applies the repository settings the bulk action can't manage, in every repo of one owner.
 
-Usage: sync-retention.py <owner> <days> [--dry-run]   (GH_TOKEN: the wshno-repo-settings installation token)
+Usage: sync-extras.py <owner> <retention-days> [--dry-run]   (GH_TOKEN: the wshno-repo-settings installation token)
 
-The bulk settings action can't manage it, so the Repository settings sync workflow runs this after
-it. The repo setting is both the default and the ceiling: an upload asking for more (quality-artifact
-asks for 90) gets this many days. GitHub's default is 90; on a private repo on the free plan, artifacts
-count against the 500 MB Actions storage quota, and 90 days of reports and SBOMs filled it.
+The Repository settings sync workflow runs this after the bulk action. Each setting is read first and
+only written when it differs.
+
+- Issues on. Scheduled workflows report failures as issues (e2e runs, for one), and the wshno/devops
+  report counts the open ones; a repo with issues off loses both.
+- Actions artifact and log retention. The repo setting is both the default and the ceiling: an upload
+  asking for more (quality-artifact asks for 90) gets this many days. GitHub's default is 90; on a
+  private repo on the free plan, artifacts count against the 500 MB Actions storage quota, and 90
+  days of reports and SBOMs filled it.
 """
 import json
 import os
@@ -35,6 +40,10 @@ def call(method, path, body=None):
         return json.loads(resp.read() or b"null")
 
 
+def change(before, after):
+    return "unchanged" if before == after else f"{before} -> {after}"
+
+
 def main():
     owner, days = sys.argv[1], int(sys.argv[2])
     dry_run = "--dry-run" in sys.argv
@@ -43,15 +52,17 @@ def main():
     if not repos:
         sys.exit(f"No repos for {owner}")
 
-    summary = [f"### Artifact and log retention: {owner}{' (dry run)' if dry_run else ''}", "",
-               "| repo | before | after |", "|---|---|---|"]
+    summary = [f"### Issues and retention: {owner}{' (dry run)' if dry_run else ''}", "",
+               "| repo | issues | artifact and log retention |", "|---|---|---|"]
     failed = False
     for repo in repos:
         try:
-            current = call("GET", f"/repos/{repo}/actions/permissions/artifact-and-log-retention")["days"]
-            if current != days and not dry_run:
+            issues = call("GET", f"/repos/{repo}")["has_issues"]
+            if not issues and not dry_run:
+                call("PATCH", f"/repos/{repo}", {"has_issues": True})
+            retention = call("GET", f"/repos/{repo}/actions/permissions/artifact-and-log-retention")["days"]
+            if retention != days and not dry_run:
                 call("PUT", f"/repos/{repo}/actions/permissions/artifact-and-log-retention", {"days": days})
-            summary.append(f"| {repo} | {current} | {days if current != days else 'unchanged'} |")
         except urllib.error.HTTPError as e:
             failed = True
             print(f"::error::{repo}: {e.code} {e.reason}: {e.read().decode(errors='replace')[:300]}")
@@ -62,7 +73,10 @@ def main():
             print(f"::error::{repo}: {e.reason}")
             summary.append(f"| {repo} | failed: {e.reason} | |")
             continue
-        print(f"{repo}: {current} -> {days if current != days else 'unchanged'}")
+        issues_change = change("off" if not issues else "on", "on")
+        retention_change = change(retention, days)
+        print(f"{repo}: issues {issues_change}, retention {retention_change}")
+        summary.append(f"| {repo} | {issues_change} | {retention_change} |")
 
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:

@@ -19,7 +19,7 @@
 # dependabot-update-dotnet-lockfiles.yml goes to the .NET repos (packages.lock.json + locked restore).
 # type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
 # Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
-# Artifact and log retention: 30 days everywhere (sync-retention.py, applied directly).
+# Issues on and 30 days of artifact and log retention everywhere (sync-extras.py, applied directly).
 #
 # CodeQL default setup is turned OFF everywhere (code-scanning: false in the workflow); the scanners
 # are zizmor, poutine (and Grype) uploading SARIF.
