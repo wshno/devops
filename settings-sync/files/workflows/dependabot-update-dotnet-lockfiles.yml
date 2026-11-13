@@ -24,7 +24,7 @@ jobs:
   update-lockfiles:
     permissions:
       contents: read
-    uses: hwinther/reusable-workflows/.github/workflows/dependabot-update-dotnet-lockfiles.yml@187aa9dd45b3020ac0a22a8ab4530a3cec60b31b # v2.30.0
+    uses: hwinther/reusable-workflows/.github/workflows/dependabot-update-dotnet-lockfiles.yml@aadc90a4c71886ade7ae0418d9fdca5a94c4197e # v2.34.0
     with:
       app_client_id: ${{ vars.DEVOPS_BOT_CLIENT_ID }}
       environment: devops-bot
