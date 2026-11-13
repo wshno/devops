@@ -5,8 +5,10 @@ name: Repository report
 # ghcr.io/wshno/devops/report:latest, which the homelab cluster (hwinther/proxmox,
 # clusters/production/apps/devops-report) reconciles with Flux and serves behind Authelia.
 #
-# Needs the repo variable AUTOMATION_APP_CLIENT_ID and secret AUTOMATION_APP_PRIVATE_KEY. The app is
-# installed on both owners in repos.yaml; each owner gets its own read-only token.
+# Needs the repo variable AUTOMATION_APP_CLIENT_ID and the secret AUTOMATION_APP_PRIVATE_KEY in the `report`
+# environment (main only). The app is installed on both owners in repos.yaml; each owner gets its own
+# read-only token. The report is not uploaded as a workflow artifact: it covers private repos, and the
+# signed OCI artifact (private package) is the one copy.
 
 on:
   schedule:
@@ -32,6 +34,7 @@ concurrency:
 jobs:
   report:
     runs-on: ubuntu-latest
+    environment: report
     timeout-minutes: 15
     permissions:
       contents: read
@@ -119,10 +122,3 @@ jobs:
             echo
             echo "\`${ARTIFACT}:latest\` → \`${digest}\`, signed (cosign keyless)."
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload the report
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: report
-          path: ${{ runner.temp }}/report
-          retention-days: 14

@@ -25,8 +25,8 @@ behind Authelia (hwinther/proxmox, `clusters/production/apps/devops-report`).
 
 The workflow reads the repos through the automation GitHub App: repository variable
 `AUTOMATION_APP_CLIENT_ID` (the app's Client ID, `Iv23…`, not its numeric App ID) and secret
-`AUTOMATION_APP_PRIVATE_KEY`. Both are set on this repo, because a private repo on the free plan
-can't read organization secrets. The app is installed on both owners. Each run mints one
+`AUTOMATION_APP_PRIVATE_KEY`. The variable is set on this repo; the secret lives in the `report`
+environment, which only `main` can use. The app is installed on both owners. Each run mints one
 token per owner, limited to the repos in repos.yaml and to read access (contents, pull requests,
 actions, metadata).
 
