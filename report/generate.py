@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repository report (every 6 hours): release drift, open PRs, framework versions and quality per repo.
+"""Repository report (hourly in the daytime): release drift, open PRs, framework versions and quality per repo.
 
 Usage: generate.py <repos.yaml> <out-dir>
 
