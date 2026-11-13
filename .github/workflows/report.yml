@@ -66,6 +66,7 @@ jobs:
           repositories: ${{ steps.repos.outputs.hwinther }}
           permission-contents: read
           permission-pull-requests: read
+          permission-issues: read
           permission-actions: read
           permission-metadata: read
 
@@ -79,6 +80,7 @@ jobs:
           repositories: ${{ steps.repos.outputs.wshno }}
           permission-contents: read
           permission-pull-requests: read
+          permission-issues: read
           permission-actions: read
           permission-metadata: read
 

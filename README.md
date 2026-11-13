@@ -29,7 +29,7 @@ The workflow reads the repos through the automation GitHub App: repository varia
 `AUTOMATION_APP_PRIVATE_KEY`. The variable is set on this repo; the secret lives in the `report`
 environment, which only `main` can use. The app is installed on both owners. Each run mints one
 token per owner, limited to the repos in repos.yaml and to read access (contents, pull requests,
-actions, metadata, and issues once the app has Issues: read).
+actions, metadata, issues).
 
 ### Running it locally
 
