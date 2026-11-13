@@ -138,6 +138,30 @@ def open_prs(repo, owner):
     return counts
 
 
+def open_issues(repo, owner, meta, open_pr_count):
+    """Open issues (not PRs), without Renovate's Dependency Dashboard, and how many a bot opened.
+
+    Bot-opened issues are scheduled workflows reporting a failure (nightly-preview-e2e and the like).
+    Listing issues needs Issues: read on the automation app; without it the repo's open_issues_count
+    (issues plus PRs) minus the open PRs gives the count alone, dashboard included.
+    """
+    try:
+        items, page = [], 1
+        while True:
+            batch = gh(f"/repos/{repo}/issues?state=open&per_page=100&page={page}", owner)
+            items += batch
+            if len(batch) < 100:
+                break
+            page += 1
+    except urllib.error.HTTPError as error:
+        if error.code not in (403, 404):
+            raise
+        return {"total": max(meta.get("open_issues_count", 0) - open_pr_count, 0), "bots": None}
+    issues = [i for i in items if "pull_request" not in i]
+    issues = [i for i in issues if not (i["user"]["login"].startswith("renovate") and i["title"] == "Dependency Dashboard")]
+    return {"total": len(issues), "bots": sum(1 for i in issues if i["user"].get("type") == "Bot")}
+
+
 BRANCHES_QUERY = """
 query($owner: String!, $name: String!, $default: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -381,10 +405,12 @@ def collect(config):
         meta = gh(f"/repos/{repo}", owner)
         branch = meta["default_branch"]
         ignore = config.get("ignore_branches", []) + entry.get("ignore_branches", [])
+        prs = open_prs(repo, owner)
+        issues = open_issues(repo, owner, meta, prs["total"])
         if entry.get("report") == "prs":
             rows.append({
                 "repo": repo, "url": meta["html_url"], "kind": entry.get("kind", "other"), "private": meta["private"],
-                "report": "prs", "defaultBranch": branch, "prs": open_prs(repo, owner),
+                "report": "prs", "defaultBranch": branch, "prs": prs, "issues": issues,
                 "branches": stale_branches(repo, owner, branch, ignore),
             })
             continue
@@ -398,7 +424,8 @@ def collect(config):
             "defaultBranch": branch,
             "release": release,
             "unreleased": drift,
-            "prs": open_prs(repo, owner),
+            "prs": prs,
+            "issues": issues,
             "branches": stale_branches(repo, owner, branch, ignore),
             "frameworks": frameworks(repo, owner, branch, {**config["minimums"], **entry.get("minimums", {})}, dotnet, pythons, npm_cache),
         })
@@ -548,6 +575,25 @@ def cell_prs(r):
     return "<br>".join(parts)
 
 
+ISSUE_QUERIES = {
+    "all": "is:issue is:open -author:app/renovate",
+    "bots": "is:issue is:open author:app/github-actions",
+}
+
+
+def cell_issues(r):
+    """Open issues; the ones a workflow opened (a scheduled run failing) in red."""
+    i = r.get("issues") or {"total": 0, "bots": None}
+    if not i["total"]:
+        return '<span class="muted">none</span>'
+    url = f'{r["url"]}/issues?q={urllib.parse.quote_plus(ISSUE_QUERIES["all"])}'
+    parts = [f'<a class="num" href="{esc(url)}">{i["total"]}</a> open']
+    if i["bots"]:
+        url = f'{r["url"]}/issues?q={urllib.parse.quote_plus(ISSUE_QUERIES["bots"])}'
+        parts.append(f'<a class="bad num" href="{esc(url)}">{i["bots"]}</a> <span class="bad">from workflows</span>')
+    return "<br>".join(parts)
+
+
 BRANCH_STATUS = {"nopr": ("no PR", "below"), "aftermerge": ("commits after merge", "below"),
                  "closed": ("closed PR", "unknown"), "delete": ("delete", "ok")}
 
@@ -674,6 +720,12 @@ def cell_coverage(q, threshold):
         if pct is not None:
             cls = "ok" if pct >= threshold else "warn" if pct >= threshold - COVERAGE_WARN_MARGIN else "bad"
             out.append(f'<span class="{cls} num">{pct:.0f} %</span> <span class="muted">{esc(name)}</span>')
+    combined = q.get("totals", {}).get("coverage", {}).get("combined")
+    pct = (combined or {}).get("lines", {}).get("percent")
+    if pct is not None:
+        cls = "ok" if pct >= threshold else "warn" if pct >= threshold - COVERAGE_WARN_MARGIN else "bad"
+        title = " + ".join(combined["components"]) + ", a line counts when either covers it"
+        out.append(f'<span class="{cls} num" title="{esc(title)}">{pct:.0f} %</span> <span class="muted">combined</span>')
     return "<br>".join(out)
 
 
@@ -917,7 +969,7 @@ def render(data):
         pr_rows.append(
             f'<tr>{repo_cell(r)}<td class="num">{pr_link(r, "other")}</td>'
             f'<td class="num">{pr_link(r, "dependabot")}</td><td class="num">{pr_link(r, "renovate")}</td>'
-            f'<td>{cell_branches(r)}</td></tr>'
+            f'<td class="prs">{cell_issues(r)}</td><td>{cell_branches(r)}</td></tr>'
         )
     rows = []
     for r in (r for r in data["repos"] if r["report"] == "full"):
@@ -925,6 +977,7 @@ def render(data):
         rows.append(
             f"<tr>{repo_cell(r)}"
             f"<td>{cell_release(r)}</td><td>{cell_drift(r)}</td><td class=\"prs\">{cell_prs(r)}</td>"
+            f"<td class=\"prs\">{cell_issues(r)}</td>"
             f"<td class=\"prs\">{cell_branches(r)}</td><td>{cell_frameworks(r)}</td>"
             f"<td>{cell_tests(q)}</td><td>{drill(r, 'coverage', cell_coverage(q, data['coverageThreshold']))}</td>"
             f"<td>{drill(r, 'warnings', cell_warnings(q))}</td><td>{drill(r, 'vulnerabilities', cell_vulns(q, r.get('qualityDetails')))}</td>"
@@ -940,14 +993,14 @@ def render(data):
 <span class="muted">\u2191 newer major on npm</span> ·
 <a href="#legend">thresholds</a> · <a href="data.json">data.json</a></p>
 <div class="wrap"><table>
-<thead><tr><th>Repository</th><th>Latest release</th><th>Unreleased on main</th><th>Open PRs</th><th>Branches without PR</th><th>Frameworks</th>
+<thead><tr><th>Repository</th><th>Latest release</th><th>Unreleased on main</th><th>Open PRs</th><th>Open issues</th><th>Branches without PR</th><th>Frameworks</th>
 <th>Tests</th><th>Line coverage</th><th>Warnings</th><th>Vulnerabilities</th></tr></thead>
 <tbody>
 {chr(10).join(rows)}
 </tbody></table></div>
 {f'''<h2>Open pull requests</h2>
 <div class="wrap fit"><table class="narrow">
-<thead><tr><th>Repository</th><th>Open</th><th>Dependabot</th><th>Renovate</th><th>Branches without PR</th></tr></thead>
+<thead><tr><th>Repository</th><th>Open</th><th>Dependabot</th><th>Renovate</th><th>Open issues</th><th>Branches without PR</th></tr></thead>
 <tbody>
 {chr(10).join(pr_rows)}
 </tbody></table></div>''' if pr_rows else ""}
