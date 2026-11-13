@@ -1,6 +1,6 @@
 name: Repository report
 
-# Every 6 hours: report/generate.py reads every repo in repos.yaml through the automation GitHub App and
+# Hourly in the daytime: report/generate.py reads every repo in repos.yaml through the automation GitHub App and
 # writes index.html + data.json. They ship as a ConfigMap in the signed OCI artifact
 # ghcr.io/wshno/devops/report:latest, which the homelab cluster (hwinther/proxmox,
 # clusters/production/apps/devops-report) reconciles with Flux and serves behind Authelia.
@@ -10,8 +10,11 @@ name: Repository report
 
 on:
   schedule:
-    # 04:30, 10:30, 16:30 and 22:30 UTC. Read-only API calls; a run takes a couple of minutes.
-    - cron: '30 4,10,16,22 * * *'
+    # Hourly 06:17-20:17 UTC (07-21 Norwegian winter time, 08-22 summer time) and once at night,
+    # 01:17. Off the hour, where GitHub delays scheduled runs the most. Read-only API calls; a run
+    # takes about 3 minutes, so ~16 runs a day is ~50 Actions minutes (private repo).
+    - cron: '17 6-20 * * *'
+    - cron: '17 1 * * *'
   workflow_dispatch:
   push:
     branches: [main]
