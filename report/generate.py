@@ -455,7 +455,9 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .theme button[aria-pressed="true"], .seg button[aria-pressed="true"] { color:var(--text); background:var(--line) }
 * { box-sizing:border-box }
 body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif }
-main { max-width:1400px; margin:0 auto; padding:24px 16px }
+/* Wide enough for the repository table (Vulnerabilities is the last column) on a wide screen; the
+   table still scrolls inside .wrap below its min-width. */
+main { max-width:2400px; margin:0 auto; padding:24px 16px }
 h1 { font-size:20px; margin:0 0 4px } h2 { font-size:16px; margin:28px 0 10px }
 .wrap.fit { display:inline-block; max-width:100% } table.narrow { min-width:0; width:auto } .prs { white-space:nowrap } table.narrow td.num { text-align:right; min-width:90px } .sub { color:var(--muted); margin:0 0 20px }
 .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px }
