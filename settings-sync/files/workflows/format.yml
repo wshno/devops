@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "format: every formatter that applies, one PR. eslint-fix: eslint --fix, its own PR (it changes code: review it as such). blame-ignore-revs: after a format PR is merged, add its commit to .git-blame-ignore-revs."
+        description: 'format: every formatter that applies, one PR. eslint-fix: eslint --fix, its own PR (it changes code: review it as such). blame-ignore-revs: after a format PR is merged, add its commit to .git-blame-ignore-revs.'
         type: choice
         default: format
         options:
