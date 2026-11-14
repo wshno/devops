@@ -19,6 +19,14 @@
       "description": "One PR per week for all action bumps.",
       "matchManagers": ["github-actions"],
       "groupName": "github-actions"
+    },
+    {
+      "description": "Our own reusable workflows: no release-age wait and no weekly window. The app repos move to a new release right away (by hand or the release PRs), so a template lagging behind would roll them back on the next sync.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["hwinther/reusable-workflows"],
+      "groupName": "hwinther/reusable-workflows",
+      "minimumReleaseAge": "0 days",
+      "schedule": ["at any time"]
     }
   ]
 }
