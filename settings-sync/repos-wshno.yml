@@ -17,6 +17,9 @@
 # settings-sync/dependabot/build.py), synced as .github/dependabot.yml in a PR of its own.
 #
 # type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
+# format.yml goes to every repo: a manual "Format code" PR. The reusable workflow detects the
+# formatters itself (cleanupcode per *.slnx, prettier, ruff, gofmt), so the file is the same everywhere;
+# a repo tunes it with its own .github/format.yml.
 # Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
 # Issues on and 30 days of artifact and log retention everywhere (sync-extras.py, applied directly).
 #
@@ -95,6 +98,11 @@ repos:
         source: workflows/type-label.yml
         target: .github/workflows/type-label.yml
         group: repository standards
+      - &format
+        name: Format code workflow
+        source: workflows/format.yml
+        target: .github/workflows/format.yml
+        group: repository standards
       - &releasecfg
         name: Release notes config
         source: release.yml
@@ -117,6 +125,7 @@ repos:
       - *automerge
       - *mdiff
       - *typelabel
+      - *format
       - *releasecfg
   - repo: wshno/frontend-packages
     dependabot-yml: dependabot/npm-library.yml
@@ -130,6 +139,7 @@ repos:
       - *codeowners
       - *automerge
       - *typelabel
+      - *format
       - *releasecfg
   - repo: wshno/static-server
     dependabot-yml: dependabot/go.yml
@@ -146,4 +156,5 @@ repos:
       - *release
       - *automerge
       - *typelabel
+      - *format
       - *releasecfg

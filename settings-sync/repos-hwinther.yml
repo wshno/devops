@@ -18,6 +18,9 @@
 #
 # dependabot-update-dotnet-lockfiles.yml goes to the .NET repos (packages.lock.json + locked restore).
 # type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
+# format.yml goes to every repo: a manual "Format code" PR. The reusable workflow detects the
+# formatters itself (cleanupcode per *.slnx, prettier, ruff, gofmt), so the file is the same everywhere;
+# a repo tunes it with its own .github/format.yml.
 # Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
 # Issues on and 30 days of artifact and log retention everywhere (sync-extras.py, applied directly).
 #
@@ -107,6 +110,11 @@ repos:
         source: workflows/type-label.yml
         target: .github/workflows/type-label.yml
         group: repository standards
+      - &format
+        name: Format code workflow
+        source: workflows/format.yml
+        target: .github/workflows/format.yml
+        group: repository standards
       - &releasecfg
         name: Release notes config
         source: release.yml
@@ -135,6 +143,7 @@ repos:
       - *automerge
       - *mdiff
       - *typelabel
+      - *format
       - *releasecfg
       - *lockfiles
   - repo: hwinther/pbs-browser
@@ -158,6 +167,7 @@ repos:
       # Private on the free plan: auto-merge, secret scanning and push protection aren't available
       # (the API answers 422), so they stay off here instead of failing every run.
       - *typelabel
+      - *format
       - *releasecfg
       - *lockfiles
   - repo: hwinther/ddnsadmin
@@ -173,6 +183,7 @@ repos:
       - *label
       - *mdiff
       - *typelabel
+      - *format
       - *releasecfg
   - repo: hwinther/test
     dependabot-yml: dependabot/dotnet-node.yml
@@ -193,6 +204,7 @@ repos:
       - *automerge
       - *mdiff
       - *typelabel
+      - *format
       - *releasecfg
       - *lockfiles
   - repo: hwinther/wsh-rtl-sdr
@@ -207,6 +219,7 @@ repos:
       - *codeowners
       - *mdiff
       - *typelabel
+      - *format
       - *releasecfg
   - repo: hwinther/wsh-pve
     dependabot-yml: dependabot/node.yml
@@ -219,6 +232,7 @@ repos:
       - *codeowners
       - *automerge
       - *typelabel
+      - *format
       - *releasecfg
   # VS Code extension: its own release.yaml publishes to the Marketplace and Open VSX on a bare
   # x.y.z tag and creates the GitHub release with generated notes, so no synced Create release.
@@ -237,6 +251,7 @@ repos:
       - *codeowners
       - *automerge
       - *typelabel
+      - *format
       - *releasecfg
   - repo: hwinther/lanot
     environments-file: *envbot
@@ -248,4 +263,5 @@ repos:
       - *poutinecfg
       - *codeowners
       - *typelabel
+      - *format
       - *releasecfg
