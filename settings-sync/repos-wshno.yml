@@ -32,6 +32,9 @@
 #                                 Also: review threads resolved; no high+ zizmor/poutine alerts.
 #   rulesets/pr-build-required.json  `pr-build / pr-build` must pass; only repos whose CI is the
 #                                 reusable pr-build (it always reports, also when it skips).
+#   rulesets/e2e-required.json    `e2e-required` must pass: the final job of pr-e2e.yml, which always
+#                                 runs on PRs and gates its jobs on changed paths itself. Add a repo
+#                                 only once its pr-e2e.yml has that job, or every PR there blocks.
 #   environments/devops-bot.yml   main-only environment for the APP_PRIVATE_KEY secret.
 #   ddnsadmin gets neither: private on the free plan, no rulesets or environments.
 #
@@ -45,6 +48,7 @@ repos:
     rulesets-file:
       - rulesets/main-baseline.json
       - rulesets/pr-build-required.json
+      - rulesets/e2e-required.json
     file-sync:
       - &zizmor
         name: zizmor workflow
@@ -102,6 +106,7 @@ repos:
     rulesets-file:
       - rulesets/main-baseline.json
       - rulesets/pr-build-required.json
+      - rulesets/e2e-required.json
     file-sync:
       - *zizmor
       - *zizmorcfg
