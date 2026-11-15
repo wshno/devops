@@ -56,6 +56,10 @@ repos:
   # Infra: its releases are for the images it builds, but "unreleased" counts every manifest commit too.
   - repo: hwinther/proxmox
     kind: infra
+  # PVE package patches: a release per package (pve-manager-*, qemu-server-*, ...), so "unreleased"
+  # counts from the newest of them. Quality comes from the Playwright e2e suite.
+  - repo: hwinther/wsh-pve
+    kind: other
 
   # Open PRs only, in a table of their own.
   - repo: hwinther/private-apps
@@ -63,9 +67,6 @@ repos:
     report: prs
   - repo: wshno/devops
     kind: infra
-    report: prs
-  - repo: hwinther/wsh-pve
-    kind: other
     report: prs
   - repo: wshno/test-consumer
     kind: test
