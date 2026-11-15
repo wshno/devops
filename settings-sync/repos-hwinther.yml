@@ -224,6 +224,10 @@ repos:
   - repo: hwinther/wsh-pve
     dependabot-yml: dependabot/node.yml
     environments-file: *envbot
+    # No main-baseline: the patch/changelog workflows push to main (WORKFLOW_TOKEN, an admin, who
+    # bypasses e2e-required as well).
+    rulesets-file:
+      - rulesets/e2e-required.json
     file-sync:
       - *zizmor
       - *zizmorcfg
