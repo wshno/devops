@@ -81,7 +81,7 @@ jobs:
       # - Secret scanning + push protection, Dependabot alerts + security updates; CodeQL default
       #   setup off.
       - name: Sync settings (${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'dry run' || 'apply' }})
-        uses: joshjohanning/bulk-github-repo-settings-sync-action@40134e844f292d0dcdc88c24fde06f085d191a35 # v2.12.4
+        uses: joshjohanning/bulk-github-repo-settings-sync-action@9858824f2b9a1c9da959a4dd542338d4661b4feb # v2.16.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           repositories-file: settings-sync/repos-${{ matrix.owner }}.yml
