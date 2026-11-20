@@ -36,6 +36,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -74,14 +75,32 @@ def token_for(owner):
     return os.environ.get("GITHUB_TOKEN_" + owner.upper().replace("-", "_")) or os.environ.get("GITHUB_TOKEN", "")
 
 
+# GitHub answers with the odd 5xx ("Internal Server Error", "Egress is over the account limit"); one of
+# those used to fail the whole report. Retry them with a short backoff, honouring Retry-After.
+RETRY_DELAYS = [2, 5, 10]
+
+
+def urlopen_read(request, timeout):
+    for delay in [*RETRY_DELAYS, None]:
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code < 500 or delay is None:
+                raise
+            retry_after = error.headers.get("Retry-After", "")
+            wait = min(int(retry_after), 60) if retry_after.isdigit() else delay
+            print(f"  HTTP {error.code} from {request.full_url}, retrying in {wait}s", file=sys.stderr)
+            time.sleep(wait)
+
+
 def get(url, owner=None, raw=False):
     headers = {"Accept": "application/json", "User-Agent": "wshno-devops-report"}
     if url.startswith(API):
         headers.update({"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
     if owner:
         headers["Authorization"] = f"Bearer {token_for(owner)}"
-    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
-        body = response.read()
+    body = urlopen_read(urllib.request.Request(url, headers=headers), timeout=30)
     return body if raw else json.loads(body)
 
 
@@ -107,7 +126,13 @@ def release_and_drift(repo, owner, branch):
     if not release:
         return None, None
     info = {"tag": release["tag_name"], "url": release["html_url"], "publishedAt": release["published_at"], "ageDays": days_since(release["published_at"])}
-    compare = try_gh(f"/repos/{repo}/compare/{release['tag_name']}...{branch}?per_page=100", owner)
+    try:
+        compare = try_gh(f"/repos/{repo}/compare/{release['tag_name']}...{branch}?per_page=100", owner)
+    except urllib.error.HTTPError as error:
+        if error.code < 500:
+            raise
+        print(f"  compare failed with HTTP {error.code} after retries; drift unknown", file=sys.stderr)
+        compare = None
     if not compare:
         return info, None
     files = [f for f in compare.get("files", []) if not NO_RELEASE_PATH.search(f["filename"])]
@@ -192,8 +217,7 @@ def graphql(query, variables, owner):
         headers={"Authorization": f"Bearer {token_for(owner)}", "Content-Type": "application/json",
                  "User-Agent": "wshno-devops-report"},
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        body = json.loads(response.read())
+    body = json.loads(urlopen_read(request, timeout=60))
     if body.get("errors"):
         raise RuntimeError("; ".join(e.get("message", "") for e in body["errors"]))
     return body["data"]
