@@ -58,7 +58,7 @@ jobs:
 
       - name: App token (hwinther)
         id: token-hwinther
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
@@ -72,7 +72,7 @@ jobs:
 
       - name: App token (wshno)
         id: token-wshno
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
@@ -100,7 +100,7 @@ jobs:
           python report/configmap.py "$RUNNER_TEMP/report" "$RUNNER_TEMP/artifact/report.yaml"
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@3fa784edd773d56630bb9f62645e08f70c2cff0a # v2.10.0
+        uses: fluxcd/flux2/action@23dcfe98fe672acdf44ecd9c60cbac41b57f5de8 # v2.10.1
 
       - name: Set up cosign
         uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
