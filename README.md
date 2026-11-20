@@ -29,6 +29,12 @@ The synced files start with `# Synced from wshno/devops …: change it there`. A
 overwritten by the next sync, so change the file here instead. A repo that needs something different keeps its own file
 and is left out of that entry (skylens keeps its own `tag-and-release.yml`, for example).
 
+Some Dependabot settings have no API, so they can't be synced as settings:
+
+- **Grouped security updates:** the synced `dependabot.yml` gives every ecosystem a `security-updates` group
+  (`applies-to: security-updates`), which gives one security PR per ecosystem across its directories.
+- **Malware alerts:** turned on by hand in each repo (Settings → Advanced Security → Dependabot → Malware alerts).
+
 ### When it runs
 
 - **Daily at 05:17 UTC** it applies everything: what is merged here reaches the repos within a day.

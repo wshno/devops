@@ -25,6 +25,7 @@ HEADER = """# Synced from wshno/devops settings-sync/files/dependabot/{name}.yml
 # manifest are skipped. Cooldown: 7 days, 14 for GitHub Actions, so the synced workflows are updated
 # in wshno/devops (Renovate, 7 days) and synced before Dependabot here proposes the same bump.
 # Groups: a dependency goes to the FIRST group that matches; groups that match nothing are harmless.
+# Security updates go to one security-updates group per ecosystem; the other groups take version updates.
 # Commit messages and PR titles are Conventional Commits, chore(deps): / chore(deps-dev):, so the
 # Type label workflow labels them and tag-and-release counts them as patch.
 
@@ -63,8 +64,17 @@ def block(ecosystem, dirs, cooldown=7, extra="", interval="weekly"):
             + extra)
 
 
+# Security updates for every ecosystem go into one pull request per block (all its directories), the
+# dependabot.yml form of the repo's "Grouped security updates" setting, which has no API to sync it.
+# Groups are scoped: this one only takes security updates, the others only version updates.
+SECURITY_GROUP = ("      security-updates:\n"
+                  "        applies-to: 'security-updates'\n"
+                  "        patterns:\n"
+                  "          - '*'\n")
+
+
 def groups(spec):
-    out = "    groups:\n"
+    out = "    groups:\n" + SECURITY_GROUP
     for name, patterns, *excl in spec:
         out += f"      {name}:\n        patterns:\n" + seq(patterns, 10)
         if excl:
@@ -142,7 +152,7 @@ def npm(dirs, extra_ignores=(), extra_groups=()):
 
 PIP_GROUPS = groups([("python", ["*"])])
 PIP = block("pip", DEEP, extra=PIP_GROUPS)
-GOMOD = block("gomod", DEEP)
+GOMOD = block("gomod", DEEP, extra=groups([]))
 
 # skylens: the Expo SDK pins React Native and its libraries; only an SDK upgrade
 # (`npx expo install --fix`) may move them.
