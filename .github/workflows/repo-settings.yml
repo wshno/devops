@@ -80,6 +80,11 @@ jobs:
       # - Auto-merge, delete merged branches, offer "Update branch".
       # - Secret scanning + push protection, Dependabot alerts + security updates; CodeQL default
       #   setup off.
+      # - Projects off.
+      # - GITHUB_TOKEN read-only unless a workflow asks for more (every workflow declares its
+      #   permissions). Actions may create PRs: the synced format.yml (format-and-create-pr) and
+      #   wsh-rtl-sdr's bump workflows open them with GITHUB_TOKEN, and with this off the PR step fails.
+      #   That also lets Actions approve PRs, which grants nothing here: no ruleset requires reviews.
       - name: Sync settings (${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'dry run' || 'apply' }})
         uses: joshjohanning/bulk-github-repo-settings-sync-action@9858824f2b9a1c9da959a4dd542338d4661b4feb # v2.16.0
         with:
@@ -94,6 +99,9 @@ jobs:
           allow-auto-merge: true
           delete-branch-on-merge: true
           allow-update-branch: true
+          projects: false
+          actions-default-workflow-permissions: read
+          actions-can-approve-pull-request-reviews: true
           # No CodeQL default setup: the scanners are zizmor/poutine/Grype uploading SARIF.
           code-scanning: false
           secret-scanning: true
