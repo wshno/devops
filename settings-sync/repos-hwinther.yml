@@ -23,6 +23,9 @@
 # a repo tunes it with its own .github/format.yml.
 # Labels themselves come from settings-sync/labels.yml (sync-labels.py, applied directly).
 # Issues on and 30 days of artifact and log retention everywhere (sync-extras.py, applied directly).
+# Runner: the synced workflows run on the repository variable RUNS_ON (default ubuntu-latest).
+# settings-sync/runs-on.yml sets it per repo (sync-extras.py, applied directly; private repos only),
+# e.g. self-hosted for ddnsadmin, which is out of GitHub-hosted minutes on the free plan.
 #
 # CodeQL default setup is turned OFF everywhere (code-scanning: false in the workflow); the scanners
 # are zizmor, poutine (and Grype) uploading SARIF.
