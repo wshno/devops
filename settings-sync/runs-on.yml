@@ -1,0 +1,11 @@
+# Runner label per repo for the synced workflows, applied by sync-extras.py as the repository's
+# Actions variable RUNS_ON. The templates in files/workflows/ run on
+# `${{ vars.RUNS_ON || 'ubuntu-latest' }}` and pass the same value as `runs_on` to the reusable
+# workflows (reusable-workflows v2.45.0+), so a repo that is not listed here keeps GitHub-hosted runners.
+#
+# Only private repos: on a public repo a pull request from a fork would run on the machine, and
+# sync-extras.py refuses it. Each self-hosted runner is registered to one repo, so the label only has
+# to say "self-hosted". The repo's own workflows (pr-e2e, container builds) set their runner themselves.
+#
+# Format: owner/repo: label
+hwinther/ddnsadmin: self-hosted
