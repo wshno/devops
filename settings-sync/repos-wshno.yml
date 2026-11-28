@@ -126,6 +126,10 @@ repos:
       - *mdiff
       - *typelabel
       - *format
+      - name: PR report workflow
+        source: workflows/pr-report.yml
+        target: .github/workflows/pr-report.yml
+        group: repository standards
       - *releasecfg
   - repo: wshno/frontend-packages
     dependabot-yml: dependabot/npm-library.yml
