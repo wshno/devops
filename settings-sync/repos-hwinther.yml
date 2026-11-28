@@ -18,6 +18,8 @@
 #
 # dependabot-update-dotnet-lockfiles.yml goes to the .NET repos (packages.lock.json + locked restore).
 # type-label.yml + release.yml go to every repo: PR title -> type label -> release notes group.
+# pr-report.yml goes to the repos whose CI and E2E workflows (named CI and E2E) can add sections to the
+# combined PR report (pr_report_enabled); it stays quiet until one does.
 # format.yml goes to every repo: a manual "Format code" PR. The reusable workflow detects the
 # formatters itself (cleanupcode per *.slnx, prettier, ruff, gofmt), so the file is the same everywhere;
 # a repo tunes it with its own .github/format.yml.
@@ -118,6 +120,11 @@ repos:
         source: workflows/format.yml
         target: .github/workflows/format.yml
         group: repository standards
+      - &prreport
+        name: PR report workflow
+        source: workflows/pr-report.yml
+        target: .github/workflows/pr-report.yml
+        group: repository standards
       - &releasecfg
         name: Release notes config
         source: release.yml
@@ -147,6 +154,7 @@ repos:
       - *mdiff
       - *typelabel
       - *format
+      - *prreport
       - *releasecfg
       - *lockfiles
   - repo: hwinther/pbs-browser
@@ -171,6 +179,7 @@ repos:
       # (the API answers 422), so they stay off here instead of failing every run.
       - *typelabel
       - *format
+      - *prreport
       - *releasecfg
       - *lockfiles
   - repo: hwinther/ddnsadmin
@@ -187,6 +196,7 @@ repos:
       - *mdiff
       - *typelabel
       - *format
+      - *prreport
       - *releasecfg
   - repo: hwinther/test
     dependabot-yml: dependabot/dotnet-node.yml
@@ -208,6 +218,7 @@ repos:
       - *mdiff
       - *typelabel
       - *format
+      - *prreport
       - *releasecfg
       - *lockfiles
   - repo: hwinther/wsh-rtl-sdr

@@ -1,0 +1,29 @@
+# Synced from wshno/devops settings-sync/files/workflows/pr-report.yml: change it there.
+name: PR report
+
+# One PR comment for the builds, tests, coverage, image scans and e2e of a PR's head commit: jobs
+# add sections (artifacts) when their workflow has pr_report_enabled: true, and this collects them
+# from every run of the commit. It stays quiet until a workflow adds sections. See docs/pr-report.md
+# in hwinther/reusable-workflows. workflow_run reads this file from the default branch, so changes
+# here apply once merged there.
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- no checkout and no code from the PR runs; their report
+  # artifacts are only parsed with jq and shown as markdown (see pr-report.yml in reusable-workflows).
+  workflow_run:
+    workflows: [CI, E2E]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  report:
+    if: github.event.workflow_run.event == 'pull_request'
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    uses: hwinther/reusable-workflows/.github/workflows/pr-report.yml@533b9a2bdab2bc3b0b8b7b9ff673330932bd9641 # v2.47.0
+    with:
+      # Repository variable RUNS_ON (set by settings-sync/runs-on.yml), e.g. self-hosted on private repos.
+      runs_on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
