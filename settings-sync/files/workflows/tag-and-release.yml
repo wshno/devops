@@ -35,7 +35,7 @@ jobs:
   tag:
     permissions:
       contents: write
-    uses: hwinther/reusable-workflows/.github/workflows/tag-and-release.yml@553c99d860391267236067907d3e51bc7f57066d # v2.45.0
+    uses: hwinther/reusable-workflows/.github/workflows/tag-and-release.yml@533b9a2bdab2bc3b0b8b7b9ff673330932bd9641 # v2.47.0
     with:
       # Repository variable RUNS_ON (set by settings-sync/runs-on.yml), e.g. self-hosted on private repos.
       runs_on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
